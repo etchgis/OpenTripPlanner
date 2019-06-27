@@ -26,6 +26,8 @@ public class BikeRentalStation implements Serializable, Cloneable {
     @JsonSerialize
     public boolean allowDropoff = true;
     @JsonSerialize
+    public boolean allowPickup = true;
+    @JsonSerialize
     public boolean isFloatingBike = false;
     @JsonSerialize
     public boolean isCarStation = false;

@@ -74,6 +74,8 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
             BikeRentalStation status = statusLookup.get(station.id);
             station.bikesAvailable = status.bikesAvailable;
             station.spacesAvailable = status.spacesAvailable;
+            station.allowDropoff = status.allowDropoff;
+            station.allowPickup = status.allowPickup;
         }
 
         // Copy the full list of station objects (with status updates) into a List, appending the floating bike stations.
@@ -136,6 +138,9 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
             brstation.bikesAvailable = stationNode.path("num_bikes_available").asInt();
             brstation.spacesAvailable = stationNode.path("num_docks_available").asInt();
             brstation.isCarStation = routeAsCar;
+
+            JsonNode isRenting = stationNode.path("is_renting");
+            brstation.allowPickup = isRenting != null ? isRenting.asBoolean() : true;
             return brstation;
         }
     }

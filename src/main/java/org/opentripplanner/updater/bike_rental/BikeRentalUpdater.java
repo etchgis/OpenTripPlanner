@@ -10,11 +10,13 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.opentripplanner.graph_builder.linking.SimpleStreetSplitter;
+import org.opentripplanner.graph_builder.linking.StreetSplitter;
 import org.opentripplanner.routing.bike_rental.BikeRentalStation;
 import org.opentripplanner.routing.bike_rental.BikeRentalStationService;
 import org.opentripplanner.routing.edgetype.RentABikeOffEdge;
 import org.opentripplanner.routing.edgetype.RentABikeOnEdge;
+import org.opentripplanner.routing.edgetype.StreetEdge;
+import org.opentripplanner.routing.graph.Edge;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.vertextype.BikeRentalStationVertex;
 import org.opentripplanner.updater.GraphUpdaterManager;
@@ -25,6 +27,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
+
+import static org.opentripplanner.graph_builder.linking.SimpleStreetSplitter.DESTRUCTIVE_SPLIT;
 
 /**
  * Dynamic bike-rental station updater which updates the Graph with bike rental stations from one BikeRentalDataSource.
@@ -37,11 +41,13 @@ public class BikeRentalUpdater extends PollingGraphUpdater {
 
     private static final String DEFAULT_NETWORK_LIST = "default";
 
-    Map<BikeRentalStation, BikeRentalStationVertex> verticesByStation = new HashMap<BikeRentalStation, BikeRentalStationVertex>();
+    Map<BikeRentalStation, BikeRentalStationVertex> verticesByStation = new HashMap<>();
 
     private BikeRentalDataSource source;
 
-    private SimpleStreetSplitter linker;
+    private Graph graph;
+
+    private StreetSplitter splitter;
 
     private BikeRentalStationService service;
 
@@ -118,8 +124,7 @@ public class BikeRentalUpdater extends PollingGraphUpdater {
 
     @Override
     public void setup(Graph graph) throws InterruptedException, ExecutionException {
-        // Creation of network linker library will not modify the graph
-        linker = new SimpleStreetSplitter(graph);
+        splitter = graph.streetIndex.getStreetSplitter();
         // Adding a bike rental station service needs a graph writer runnable
         service = graph.getService(BikeRentalStationService.class, true);
     }
@@ -152,9 +157,16 @@ public class BikeRentalUpdater extends PollingGraphUpdater {
 
 		@Override
         public void run(Graph graph) {
+            if (!this.stations.isEmpty()) {
+                applyStations(graph);
+            }
+        }
+
+         private void applyStations(Graph graph) {
             // Apply stations to graph
             Set<BikeRentalStation> stationSet = new HashSet<>();
             Set<String> defaultNetworks = new HashSet<>(Arrays.asList(network));
+            LOG.info("Updating {} rental bike stations.", stations.size());
             /* add any new stations and update bike counts for existing stations */
             for (BikeRentalStation station : stations) {
                 if (station.networks == null) {
@@ -166,21 +178,40 @@ public class BikeRentalUpdater extends PollingGraphUpdater {
                 BikeRentalStationVertex vertex = verticesByStation.get(station);
                 if (vertex == null) {
                     vertex = new BikeRentalStationVertex(graph, station);
-                    if (!linker.link(vertex)) {
+                    if (!splitter.linkToClosestWalkableEdge(vertex, DESTRUCTIVE_SPLIT)) {
                         // the toString includes the text "Bike rental station"
                         LOG.warn("{} not near any streets; it will not be usable.", station);
                     }
                     verticesByStation.put(station, vertex);
-                    new RentABikeOnEdge(vertex, vertex, station.networks);
-                    if (station.allowDropoff)
+                    //if (station.allowPickup)
+                        new RentABikeOnEdge(vertex, vertex, station.networks);
+                    //if (station.allowDropoff)
+                        new RentABikeOffEdge(vertex, vertex, station.networks);
+                } else if (station.x != vertex.getX() || station.y != vertex.getY()) {
+                    LOG.info("{} has changed, re-graphing", station);
+                    // First remove the old one.
+                    if (graph.containsVertex(vertex)) {
+                        graph.removeVertexAndEdges(vertex);
+                    }
+                    // Next, create a new vertex.
+                    vertex = new BikeRentalStationVertex(graph, station);
+                    if (!splitter.linkToClosestWalkableEdge(vertex, DESTRUCTIVE_SPLIT)) {
+                        LOG.warn("Ignoring {} since it's not near any streets; it will not be usable.", station);
+                    }
+                    verticesByStation.put(station, vertex);
+                    //if (station.allowPickup)
+                        new RentABikeOnEdge(vertex, vertex, station.networks);
+                    //if (station.allowDropoff)
                         new RentABikeOffEdge(vertex, vertex, station.networks);
                 } else {
+                    // Update the station metadata.
                     vertex.setBikesAvailable(station.bikesAvailable);
                     vertex.setSpacesAvailable(station.spacesAvailable);
+                    //vertex.setPickupAllowed(station.allowPickup);
                 }
             }
             /* remove existing stations that were not present in the update */
-            List<BikeRentalStation> toRemove = new ArrayList<BikeRentalStation>();
+            List<BikeRentalStation> toRemove = new ArrayList<>();
             for (Entry<BikeRentalStation, BikeRentalStationVertex> entry : verticesByStation.entrySet()) {
                 BikeRentalStation station = entry.getKey();
                 if (stationSet.contains(station))

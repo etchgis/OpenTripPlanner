@@ -3,6 +3,7 @@ package org.opentripplanner.routing.services;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.opentripplanner.common.model.GenericLocation;
+import org.opentripplanner.graph_builder.linking.StreetSplitter;
 import org.opentripplanner.routing.core.RoutingRequest;
 import org.opentripplanner.routing.graph.Edge;
 import org.opentripplanner.routing.graph.Vertex;
@@ -19,7 +20,7 @@ public interface StreetVertexIndexService {
      * @param envelope
      * @return
      */
-    public Collection<Vertex> getVerticesForEnvelope(Envelope envelope);
+    Collection<Vertex> getVerticesForEnvelope(Envelope envelope);
 
     /**
      * Return the edges whose geometry intersect with the specified envelope. Warning: edges w/o
@@ -28,20 +29,20 @@ public interface StreetVertexIndexService {
      * @param envelope
      * @return
      */
-    public Collection<Edge> getEdgesForEnvelope(Envelope envelope);
+    Collection<Edge> getEdgesForEnvelope(Envelope envelope);
 
     /**
      * @param coordinate
      * @param radiusMeters
      * @return The transit stops within a certain radius of the given location.
      */
-    public List<TransitStop> getNearbyTransitStops(Coordinate coordinate, double radiusMeters);
+    List<TransitStop> getNearbyTransitStops(Coordinate coordinate, double radiusMeters);
 
     /**
      * @param envelope
      * @return The transit stops within an envelope.
      */
-    public List<TransitStop> getTransitStopForEnvelope(Envelope envelope);
+    List<TransitStop> getTransitStopForEnvelope(Envelope envelope);
 
     /**
      * Finds the appropriate vertex for this location.
@@ -58,4 +59,10 @@ public interface StreetVertexIndexService {
 	 * so that origins and destinations are linked the same way. */
 	public Vertex getSampleVertexAt(Coordinate coordinate, boolean dest);
 
+    /**
+     * Getter method for StreetSplitter
+     *
+     * @return StreetSplitter
+     */
+    StreetSplitter getStreetSplitter();
 }
