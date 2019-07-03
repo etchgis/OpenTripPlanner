@@ -25,6 +25,8 @@ public class BikeRentalStationVertex extends Vertex {
 
     private int spacesAvailable;
 
+    private boolean pickupAllowed;
+
     public final boolean isFloatingBike;
 
     private String id;
@@ -45,6 +47,7 @@ public class BikeRentalStationVertex extends Vertex {
         this.setBikesAvailable(station.bikesAvailable);
         this.setSpacesAvailable(station.spacesAvailable);
         this.isCarStation = station.isCarStation;
+        this.setPickupAllowed(station.allowPickup);
         this.isFloatingBike = station.isFloatingBike;
     }
 
@@ -81,4 +84,11 @@ public class BikeRentalStationVertex extends Vertex {
          return isCarStation ? TraverseMode.CAR : TraverseMode.BICYCLE;
     }
 
+    public boolean isPickupAllowed() {
+        return pickupAllowed;
+    }
+
+    public void setPickupAllowed(boolean pickupAllowed) {
+        this.pickupAllowed = pickupAllowed;
+    }
 }

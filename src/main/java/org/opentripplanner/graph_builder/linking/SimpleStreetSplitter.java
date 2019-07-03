@@ -142,7 +142,7 @@ public class SimpleStreetSplitter implements StreetSplitter {
     }
 
     /** Link all relevant vertices to the street network */
-    public void linkAllStationsToGraph() {	
+    public void linkAllStationsToGraph() { 
         for (Vertex v : graph.getVertices()) {
             if (v instanceof TransitStop || v instanceof BikeRentalStationVertex || v instanceof BikeParkVertex)
                 if (!linkToClosestWalkableEdge(v, DESTRUCTIVE_SPLIT)) {
@@ -194,11 +194,9 @@ public class SimpleStreetSplitter implements StreetSplitter {
 
         final double DUPLICATE_WAY_EPSILON_DEGREES = SphericalDistanceLibrary.metersToDegrees(DUPLICATE_WAY_EPSILON_METERS);
 
-        final TraverseModeSet traverseModeSet;
+        final TraverseModeSet traverseModeSet = new TraverseModeSet(traverseMode);
         if (traverseMode == TraverseMode.BICYCLE) {
-            traverseModeSet = new TraverseModeSet(traverseMode, TraverseMode.WALK);
-        } else {
-            traverseModeSet = new TraverseModeSet(traverseMode);
+            traverseModeSet.setWalk(true);
         }
         // We sort the list of candidate edges by distance to the stop
         // This should remove any issues with things coming out of the spatial index in different orders
@@ -340,7 +338,7 @@ public class SimpleStreetSplitter implements StreetSplitter {
     }
 
     /**
-     private void link(Vertex tstop, StreetEdge edge, double xscale, RoutingRequest options) {		      * Split the edge and link in the transit stop.
+      * Split the edge and link in the transit stop.
       * @param vertex An object of Vertex to be linked to an edge.
       * @param edge An object of StreetEdge to be linked to.
       * @param xscale The longitude scale factor in Equirectangular projection.

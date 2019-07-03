@@ -544,7 +544,7 @@ public class StateEditor {
 
     public void setBikeRentalNetwork(Set<String> networks) {
         cloneStateDataAsNeeded();
-        child.stateData.bikeRentalNetworks = networks;
+        child.stateData.currentlyRentedBikes = networks;
     }
 
     public boolean hasEnteredNoThroughTrafficArea() {

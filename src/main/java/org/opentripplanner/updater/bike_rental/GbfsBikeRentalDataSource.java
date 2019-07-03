@@ -2,6 +2,7 @@ package org.opentripplanner.updater.bike_rental;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.Sets;
+//import org.opentripplanner.routing.bike_rental.BikeRentalRegion;
 import org.opentripplanner.routing.bike_rental.BikeRentalStation;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.updater.JsonConfigurable;
@@ -88,7 +89,12 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
 
         return stations;
     }
-
+/*
+    @Override
+    public List<BikeRentalRegion> getRegions() {
+        return new ArrayList<>();
+    }
+*/
     /**
      * Note that the JSON being passed in here is for configuration of the OTP component, it's completely separate
      * from the JSON coming in from the update source.

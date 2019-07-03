@@ -39,17 +39,25 @@ public abstract class RentABikeAbstractEdge extends Edge {
          */
         if (!s0.getNonTransitMode().equals(TraverseMode.WALK))
             return null;
-        /*
-         * To rent a bike, we need to have BICYCLE in allowed modes.
-         */
-        if (!options.modes.contains(TraverseMode.BICYCLE))
-            return null;
 
         BikeRentalStationVertex vertex = (BikeRentalStationVertex) tov;
+        /*
+        * To rent a bike, we need to have BICYCLE in allowed modes.
+        */
+        if (!options.modes.contains(TraverseMode.BICYCLE) || !vertex.isPickupAllowed())
+            return null;
+
         if (options.useBikeRentalAvailabilityInformation && vertex.getBikesAvailable() == 0) {
             return null;
         }
-
+/*
+        // Check bikeNetworks if specific bike networks are requested.
+        if (options.bikeNetworks != null &&
+            !options.bikeNetworks.isEmpty() &&
+            Sets.intersection(vertex.networks, options.bikeNetworks).isEmpty()) {
+            return null;
+        }
+*/
         StateEditor s1 = s0.edit(this);
         s1.incrementWeight(options.arriveBy ? options.bikeRentalDropoffCost : options.bikeRentalPickupCost);
         s1.incrementTimeInSeconds(options.arriveBy ? options.bikeRentalDropoffTime : options.bikeRentalPickupTime);
@@ -65,7 +73,7 @@ public abstract class RentABikeAbstractEdge extends Edge {
         /*
          * To dropoff a bike, we need to have rented one.
          */
-        if (!s0.isBikeRenting() || !hasCompatibleNetworks(networks, s0.getBikeRentalNetworks()))
+        if (!s0.isBikeRenting() || !hasCompatibleNetworks(networks, s0.getCurrentlyRentedBikes()))
             return null;
         BikeRentalStationVertex pickup = (BikeRentalStationVertex) tov;
         if (options.useBikeRentalAvailabilityInformation && pickup.getSpacesAvailable() == 0) {

@@ -265,14 +265,49 @@ public class State implements Cloneable {
         return stateData.bikeParked;
     }
 
+    /**
+     * Returns the last street edge traversed by scanning the backEdge of the state chain backward.
+     * @param state a State
+     */
+    private StreetEdge getLastSeenStreetEdge(State state) {
+        if (state == null) {
+            return null;
+        }
+        if (state.backEdge instanceof StreetEdge) {
+            return (StreetEdge) state.backEdge;
+        }
+        return getLastSeenStreetEdge(state.backState);
+    }
+
    /**
-      * Returns true if:
-      *    - There is no region defined for at least one of the currently taken bikes,
-      *      or
-      *    - The backEdge is inside the rental bike service area (backEdge.networks contains at least one of the
-      *      currently taken bikes)
-      */
+    * Returns true if:
+    *    - There is no region defined for at least one of the currently taken bikes,
+    *      or
+    *    - The backEdge is inside the rental bike service area (backEdge.networks contains at least one of the
+    *      currently taken bikes)
+    */
     public boolean isFloatingBikeDropOffAllowed() {
+        if (stateData.currentlyRentedBikes == null) {
+            LOG.warn("'isFloatingBikeDropOffAllowed()' is called while 'currentlyRentedBikes' is null.");
+            return false;
+        }
+/*
+        // Find which street edge is the one we are at
+        StreetEdge theEdge = getLastSeenStreetEdge(this);
+        if (theEdge == null) {
+            LOG.warn("isFloatingBikeDropOffAllowed(): Could not find the last seen StreetEdge.");
+            return false;
+        }
+
+        BikeRentalStationService bikeService = getContext().graph.getService(BikeRentalStationService.class);
+        for (String network : stateData.currentlyRentedBikes) {
+            boolean hasRegionDefined = bikeService.getBikeRentalRegions().get(network) != null;
+            if (!hasRegionDefined || theEdge.containsBikeNetwork(network)) {
+                return true;
+            }
+        }
+        return false;*/
+
         return true;
     }
 
@@ -648,8 +683,8 @@ public class State implements Cloneable {
         return stateData.serviceDay;
     }
 
-    public Set<String> getBikeRentalNetworks() {
-        return stateData.bikeRentalNetworks;
+    public Set<String> getCurrentlyRentedBikes() {
+        return stateData.currentlyRentedBikes;
     }
 
     /**
