@@ -219,6 +219,9 @@ public class Leg {
     @JsonSerialize
     public Boolean rentedBike;
 
+    @JsonSerialize
+    public Boolean hailedCar;
+
      /**
       * True if this is a call-and-ride leg.
       */
