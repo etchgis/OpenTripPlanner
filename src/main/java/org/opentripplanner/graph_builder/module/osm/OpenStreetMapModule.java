@@ -306,8 +306,8 @@ public class OpenStreetMapModule implements GraphBuilderModule {
                 station.realTimeData = false;
                 bikeRentalService.addBikeRentalStation(station);
                 BikeRentalStationVertex stationVertex = new BikeRentalStationVertex(graph, station);
-                new RentABikeOnEdge(stationVertex, stationVertex, networkSet);
-                new RentABikeOffEdge(stationVertex, stationVertex, networkSet);
+                new RentABikeOnEdge(stationVertex, stationVertex, networkSet, "bike");
+                new RentABikeOffEdge(stationVertex, stationVertex, networkSet, "bike");
             }
             if (n > 1) {
                 graph.hasBikeSharing = true;

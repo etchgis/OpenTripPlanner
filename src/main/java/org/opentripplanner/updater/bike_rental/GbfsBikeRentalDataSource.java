@@ -26,6 +26,7 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
     private String baseUrl;
 
     private String networkName;
+    private String vehicleType;
 
     /** Some car rental systems and flex transit systems work exactly like bike rental, but with cars. */
     private boolean routeAsCar;
@@ -39,6 +40,7 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
         } else {
             this.networkName = "GBFS";
         }
+        this.setVehicleType(null);
     }
 
     public void setBaseUrl (String url) {
@@ -47,6 +49,12 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
         stationInformationSource.setUrl(baseUrl + "station_information.json");
         stationStatusSource.setUrl(baseUrl + "station_status.json");
         floatingBikeSource.setUrl(baseUrl + "free_bike_status.json");
+    }
+
+    public void setVehicleType (String type) {
+        if (type == null || type.isEmpty())
+            type = "bike";
+        this.vehicleType = type;
     }
 
     @Override
@@ -85,7 +93,12 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
 
         // Set identical network ID on all stations
         Set<String> networkIdSet = Sets.newHashSet(this.networkName);
-        for (BikeRentalStation station : stations) station.networks = networkIdSet;
+        for (BikeRentalStation station : stations) {
+            station.networks = networkIdSet;
+            if (station.vehicleType == null || station.vehicleType.isEmpty()) {
+                station.vehicleType = this.vehicleType;
+            }
+        }
 
         return stations;
     }
@@ -107,6 +120,11 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
             throw new IllegalArgumentException("Missing mandatory 'url' configuration.");
         }
         this.setBaseUrl(url);
+        String vehicleType = jsonNode.path("vehicleType").asText();
+        if (vehicleType != null) {
+            LOG.info("All rented vehicles will be treated as a " + vehicleType + ".");
+            this.setVehicleType(vehicleType);
+        }
         this.routeAsCar = jsonNode.path("routeAsCar").asBoolean(false);
         if (routeAsCar) {
             LOG.info("This 'bike rental' system will be treated as a car rental system.");
@@ -164,6 +182,7 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
             brstation.name = new NonLocalizedString(stationNode.path("name").asText());
             brstation.x = stationNode.path("lon").asDouble();
             brstation.y = stationNode.path("lat").asDouble();
+            brstation.vehicleType = stationNode.path("vehicle_type").toString();
             brstation.bikesAvailable = 1;
             brstation.spacesAvailable = 0;
             brstation.allowDropoff = false;

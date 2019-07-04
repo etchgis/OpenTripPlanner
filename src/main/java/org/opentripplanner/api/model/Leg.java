@@ -226,6 +226,9 @@ public class Leg {
     @JsonSerialize
     public Boolean rentedBike;
 
+    @JsonSerialize
+    public String vehicleType;
+
      /**
       * True if this is a call-and-ride leg.
       */

@@ -69,6 +69,8 @@ public abstract class DominanceFunction implements Serializable {
         if (a.isBikeRenting()) {
             if (!Objects.equals(a.getCurrentlyRentedBikes(), b.getCurrentlyRentedBikes()))
                 return false;
+            if (a.getVehicleRentalType() != b.getVehicleRentalType())
+                return false;
         }
 
         // Does one state represent driving a car and the other represent walking after the car was parked?

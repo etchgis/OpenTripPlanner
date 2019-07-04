@@ -117,6 +117,7 @@ public class StreetTransitLink extends Edge {
                 s1.setBikeParked(true);
                 s1.doneVehicleRenting();
                 s1.setBikeRentalNetwork(new HashSet<>());
+                s1.setRentalType(null);
             } else {
                 return null;
             }

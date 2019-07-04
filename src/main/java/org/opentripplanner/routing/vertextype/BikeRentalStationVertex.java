@@ -39,6 +39,8 @@ public class BikeRentalStationVertex extends Vertex {
      */
     public Set<String> networks;
 
+    private String vehicleType;
+
     public BikeRentalStationVertex(Graph g, BikeRentalStation station) {
         //FIXME: raw_name can be null if bike station is made from graph updater
         super(g, "bike rental station " + station.id, station.x, station.y, station.name);
@@ -49,6 +51,7 @@ public class BikeRentalStationVertex extends Vertex {
         this.isCarStation = station.isCarStation;
         this.setPickupAllowed(station.allowPickup);
         this.isFloatingBike = station.isFloatingBike;
+        this.vehicleType = station.vehicleType;
     }
 
     public int getBikesAvailable() {
@@ -82,6 +85,10 @@ public class BikeRentalStationVertex extends Vertex {
      */
     public TraverseMode getVehicleMode () {
          return isCarStation ? TraverseMode.CAR : TraverseMode.BICYCLE;
+    }
+
+    public String getVehicleType() {
+        return vehicleType;
     }
 
     public boolean isPickupAllowed() {

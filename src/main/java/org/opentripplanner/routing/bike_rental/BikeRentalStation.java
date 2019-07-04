@@ -30,6 +30,8 @@ public class BikeRentalStation implements Serializable, Cloneable {
     @JsonSerialize
     public boolean isFloatingBike = false;
     @JsonSerialize
+    public String vehicleType;
+    @JsonSerialize
     public boolean isCarStation = false;
 
     /**

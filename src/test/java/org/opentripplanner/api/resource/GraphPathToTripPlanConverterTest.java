@@ -575,7 +575,7 @@ public class GraphPathToTripPlanConverterTest {
         StreetBikeRentalLink e43 = new StreetBikeRentalLink(
                 v42, v44);
         RentABikeOnEdge e45 = new RentABikeOnEdge(
-                v44, v46, Collections.singleton(""));
+                v44, v46, Collections.singleton(""), "bike");
         StreetBikeRentalLink e47 = new StreetBikeRentalLink(
                 v46, v48);
         StreetWithElevationEdge e49 = new StreetWithElevationEdge(
@@ -590,7 +590,7 @@ public class GraphPathToTripPlanConverterTest {
         StreetBikeRentalLink e55 = new StreetBikeRentalLink(
                 v54, v56);
         RentABikeOffEdge e57 = new RentABikeOffEdge(
-                v56, v58, Collections.singleton(""));
+                v56, v58, Collections.singleton(""), "bike");
         StreetBikeRentalLink e59 = new StreetBikeRentalLink(
                 v58, v60);
 

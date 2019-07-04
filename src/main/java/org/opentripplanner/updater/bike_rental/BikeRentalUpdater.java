@@ -204,9 +204,9 @@ public class BikeRentalUpdater extends PollingGraphUpdater {
                     }
                     verticesByStation.put(station, vertex);
                     if (station.allowPickup)
-                        new RentABikeOnEdge(vertex, vertex, station.networks);
+                        new RentABikeOnEdge(vertex, vertex, station.networks, station.vehicleType);
                     if (station.allowDropoff)
-                        new RentABikeOffEdge(vertex, vertex, station.networks);
+                        new RentABikeOffEdge(vertex, vertex, station.networks, station.vehicleType);
                 } else if (station.x != vertex.getX() || station.y != vertex.getY()) {
                     LOG.info("{} has changed, re-graphing", station);
                     // First remove the old one.
@@ -220,9 +220,9 @@ public class BikeRentalUpdater extends PollingGraphUpdater {
                     }
                     verticesByStation.put(station, vertex);
                     if (station.allowPickup)
-                        new RentABikeOnEdge(vertex, vertex, station.networks);
+                        new RentABikeOnEdge(vertex, vertex, station.networks, station.vehicleType);
                     if (station.allowDropoff)
-                        new RentABikeOffEdge(vertex, vertex, station.networks);
+                        new RentABikeOffEdge(vertex, vertex, station.networks, station.vehicleType);
                 } else {
                     // Update the station metadata.
                     vertex.setBikesAvailable(station.bikesAvailable);

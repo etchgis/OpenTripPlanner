@@ -294,6 +294,13 @@ public class RoutingRequest implements Cloneable, Serializable {
     /** Only use certain named mobility providers */
     public HashSet<String> whiteListedProviders = new HashSet<String>();
 
+    /** Do not use certain rental vehicle types */
+    public HashSet<String> bannedVehicles = new HashSet<String>();
+
+    /** Only use certain rental vehicle types */
+    public HashSet<String> whiteListedVehicles = new HashSet<String>();
+
+
     /**
      * A global minimum transfer time (in seconds) that specifies the minimum amount of time that must pass between exiting one transit vehicle and
      * boarding another. This time is in addition to time it might take to walk between transit stops. This time should also be overridden by specific
@@ -888,6 +895,20 @@ public class RoutingRequest implements Cloneable, Serializable {
         if (!s.isEmpty()) {
             whiteListedProviders = new HashSet<>();
             Collections.addAll(whiteListedProviders, s.toLowerCase().split(","));
+        }
+    }
+
+    public void setBannedVehicles(String s) {
+        if (!s.isEmpty()) {
+            bannedVehicles = new HashSet<>();
+            Collections.addAll(bannedVehicles, s.toLowerCase().split(","));
+        }
+    }
+
+    public void setWhiteListedVehicles(String s) {
+        if (!s.isEmpty()) {
+            whiteListedVehicles = new HashSet<>();
+            Collections.addAll(whiteListedVehicles, s.toLowerCase().split(","));
         }
     }
 

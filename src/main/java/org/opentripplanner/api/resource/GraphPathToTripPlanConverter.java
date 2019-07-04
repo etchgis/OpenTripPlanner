@@ -334,6 +334,7 @@ public abstract class GraphPathToTripPlanConverter {
             Set<String> networks = states[0].getCurrentlyRentedBikes();
             if (networks != null && !networks.isEmpty())
                 leg.providerId = ((String)networks.toArray()[0]).toLowerCase();
+            leg.vehicleType = states[0].getVehicleRentalType();
         }
 
         addModeAndAlerts(graph, leg, states, disableAlertFiltering, requestedLocale);

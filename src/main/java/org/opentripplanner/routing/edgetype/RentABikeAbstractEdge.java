@@ -26,10 +26,12 @@ public abstract class RentABikeAbstractEdge extends Edge {
     private static final long serialVersionUID = 1L;
 
     private Set<String> networks;
+    private String vehicleType;
 
-    public RentABikeAbstractEdge(Vertex from, Vertex to, Set<String> networks) {
+    public RentABikeAbstractEdge(Vertex from, Vertex to, Set<String> networks, String vehicleType) {
         super(from, to);
         this.networks = networks;
+        this.vehicleType = vehicleType;
     }
 
     protected State traverseRent(State s0) {
@@ -64,11 +66,23 @@ public abstract class RentABikeAbstractEdge extends Edge {
             return null;
         }
 
+        if (options.whiteListedVehicles != null &&
+            !options.whiteListedVehicles.isEmpty() &&
+            !options.whiteListedVehicles.contains(vertex.getVehicleType())) {
+            return null;
+        }
+        if (options.bannedVehicles != null &&
+            !options.bannedVehicles.isEmpty() &&
+            options.bannedVehicles.contains(vertex.getVehicleType())) {
+            return null;
+        }
+
         StateEditor s1 = s0.edit(this);
         s1.incrementWeight(options.arriveBy ? options.bikeRentalDropoffCost : options.bikeRentalPickupCost);
         s1.incrementTimeInSeconds(options.arriveBy ? options.bikeRentalDropoffTime : options.bikeRentalPickupTime);
         s1.beginVehicleRenting(((BikeRentalStationVertex)fromv).getVehicleMode(), vertex.isFloatingBike);
         s1.setBikeRentalNetwork(networks);
+        s1.setRentalType(vehicleType);
         s1.setBackMode(s0.getNonTransitMode());
         State s1b = s1.makeState();
         return s1b;

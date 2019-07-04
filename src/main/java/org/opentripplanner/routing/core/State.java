@@ -687,6 +687,10 @@ public class State implements Cloneable {
         return stateData.currentlyRentedBikes;
     }
 
+    public String getVehicleRentalType() {
+        return stateData.rentalType;
+    }
+
     /**
      * Reverse the path implicit in the given state, re-traversing all edges in the opposite
      * direction so as to remove any unnecessary waiting in the resulting itinerary. This produces a

@@ -547,6 +547,11 @@ public class StateEditor {
         child.stateData.currentlyRentedBikes = networks;
     }
 
+    public void setRentalType(String vehicleType) {
+        cloneStateDataAsNeeded();
+        child.stateData.rentalType = vehicleType;
+    }
+
     public boolean hasEnteredNoThroughTrafficArea() {
         return child.hasEnteredNoThruTrafficArea();
     }
