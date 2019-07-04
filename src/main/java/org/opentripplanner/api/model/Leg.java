@@ -154,6 +154,13 @@ public class Leg {
     public String agencyId = null;
     
     /**
+     * The ID of the mobility provider that operates the service used for this leg.
+     * For walk or personal vehicle legs, null.
+     */
+    @JsonSerialize
+    public String providerId = null;
+
+    /**
      * For transit legs, the ID of the trip.
      * For non-transit legs, null.
      */

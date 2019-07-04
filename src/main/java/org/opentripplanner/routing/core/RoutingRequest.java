@@ -288,6 +288,12 @@ public class RoutingRequest implements Cloneable, Serializable {
      */
     public int useUnpreferredRoutesPenalty = 300;
 
+    /** Do not use certain named mobility providers */
+    public HashSet<String> bannedProviders = new HashSet<String>();
+
+    /** Only use certain named mobility providers */
+    public HashSet<String> whiteListedProviders = new HashSet<String>();
+
     /**
      * A global minimum transfer time (in seconds) that specifies the minimum amount of time that must pass between exiting one transit vehicle and
      * boarding another. This time is in addition to time it might take to walk between transit stops. This time should also be overridden by specific
@@ -871,6 +877,20 @@ public class RoutingRequest implements Cloneable, Serializable {
         }
     }
 
+    public void setBannedProviders(String s) {
+        if (!s.isEmpty()) {
+            bannedProviders = new HashSet<>();
+            Collections.addAll(bannedProviders, s.toLowerCase().split(","));
+        }
+    }
+
+    public void setWhiteListedProviders(String s) {
+        if (!s.isEmpty()) {
+            whiteListedProviders = new HashSet<>();
+            Collections.addAll(whiteListedProviders, s.toLowerCase().split(","));
+        }
+    }
+
     public final static int MIN_SIMILARITY = 1000;
 
     public void setFromString(String from) {
@@ -1372,6 +1392,11 @@ public class RoutingRequest implements Cloneable, Serializable {
                 return true;
             }
         }
+        if (bannedProviders != null) {
+            if (bannedProviders.contains(route.getAgency().getId().toLowerCase())) {
+                return true;
+            }
+        }
 
         /* check if route banned for this plan */
         if (bannedRoutes != null) {
@@ -1387,6 +1412,12 @@ public class RoutingRequest implements Cloneable, Serializable {
         if (whiteListedAgencies != null && whiteListedAgencies.size() > 0) {
             whiteListInUse = true;
             if (whiteListedAgencies.contains(route.getAgency().getId())) {
+                whiteListed = true;
+            }
+        }
+        if (whiteListedProviders != null && whiteListedProviders.size() > 0) {
+            whiteListInUse = true;
+            if (whiteListedProviders.contains(route.getAgency().getId().toLowerCase())) {
                 whiteListed = true;
             }
         }

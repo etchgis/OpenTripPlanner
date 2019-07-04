@@ -330,6 +330,11 @@ public abstract class GraphPathToTripPlanConverter {
         addFrequencyFields(states, leg);
 
         leg.rentedBike = states[0].isBikeRenting() && states[states.length - 1].isBikeRenting();
+        if (leg.rentedBike) {
+            Set<String> networks = states[0].getCurrentlyRentedBikes();
+            if (networks != null && !networks.isEmpty())
+                leg.providerId = ((String)networks.toArray()[0]).toLowerCase();
+        }
 
         addModeAndAlerts(graph, leg, states, disableAlertFiltering, requestedLocale);
         if (leg.isTransitLeg()) addRealTimeData(leg, states);
@@ -596,6 +601,10 @@ public abstract class GraphPathToTripPlanConverter {
             leg.flexDrtDropOffMessage = trip.getDrtDropOffMessage();
             leg.flexFlagStopPickupMessage = trip.getContinuousPickupMessage();
             leg.flexFlagStopDropOffMessage = trip.getContinuousDropOffMessage();
+
+            if (leg.agencyId != null) {
+                leg.providerId = leg.agencyId.toLowerCase();
+            }
 
             if (serviceDay != null) {
                 leg.serviceDate = serviceDay.getServiceDate().getAsString();

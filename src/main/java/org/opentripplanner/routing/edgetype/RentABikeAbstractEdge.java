@@ -50,14 +50,20 @@ public abstract class RentABikeAbstractEdge extends Edge {
         if (options.useBikeRentalAvailabilityInformation && vertex.getBikesAvailable() == 0) {
             return null;
         }
-/*
-        // Check bikeNetworks if specific bike networks are requested.
-        if (options.bikeNetworks != null &&
-            !options.bikeNetworks.isEmpty() &&
-            Sets.intersection(vertex.networks, options.bikeNetworks).isEmpty()) {
+
+        // Check if specific bike networks are requested or banned.
+        // TODO: handle casing
+        if (options.whiteListedProviders != null &&
+            !options.whiteListedProviders.isEmpty() &&
+            Sets.intersection(vertex.networks, options.whiteListedProviders).isEmpty()) {
             return null;
         }
-*/
+        if (options.bannedProviders != null &&
+            !options.bannedProviders.isEmpty() &&
+            Sets.difference(vertex.networks, options.bannedProviders).isEmpty()) {
+            return null;
+        }
+
         StateEditor s1 = s0.edit(this);
         s1.incrementWeight(options.arriveBy ? options.bikeRentalDropoffCost : options.bikeRentalPickupCost);
         s1.incrementTimeInSeconds(options.arriveBy ? options.bikeRentalDropoffTime : options.bikeRentalPickupTime);
