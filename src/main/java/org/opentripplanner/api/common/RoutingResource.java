@@ -11,6 +11,7 @@ import javax.xml.datatype.DatatypeFactory;
 import javax.xml.datatype.XMLGregorianCalendar;
 
 import org.opentripplanner.model.FeedScopedId;
+import org.opentripplanner.api.parameter.QualifiedMode;
 import org.opentripplanner.api.parameter.QualifiedModeSet;
 import org.opentripplanner.routing.core.OptimizeType;
 import org.opentripplanner.routing.core.RoutingRequest;
@@ -411,6 +412,12 @@ public abstract class RoutingResource {
     @QueryParam("geoidElevation")
     private Boolean geoidElevation;
 
+    @QueryParam("minTransitDistance")
+    private String minTransitDistance;
+
+    @QueryParam("searchTimeout")
+    protected Long searchTimeout;
+
     /**
      * Set the method of sorting itineraries in the response. Right now, the only supported value is "duration";
      * otherwise it uses default sorting. More sorting methods may be added in the future.
@@ -682,6 +689,30 @@ public abstract class RoutingResource {
 
         if (geoidElevation != null)
             request.geoidElevation = geoidElevation;
+
+        if (minTransitDistance != null)
+            request.minTransitDistance = minTransitDistance;
+
+        if (searchTimeout != null)
+            request.searchTimeout = searchTimeout;
+
+        // Also, if "depart at" and leaving soonish, save earliest departure time for use later use when boarding the
+        // first TNC before transit.  (See StateEditor.boardHailedCar)
+        if (this.modes != null && this.modes.qModes.contains(new QualifiedMode("CAR_HAIL"))) {
+
+            int earliestEta = 15 * 60;
+
+             // store the earliest ETA if planning a "depart at" trip that begins soonish (within + or - 30 minutes)
+            long now = (new Date()).getTime() / 1000;
+            long departureTimeWindow = 1800;
+            if (
+                this.arriveBy == false &&
+                    request.dateTime < now + departureTimeWindow &&
+                    request.dateTime > now - departureTimeWindow
+            ) {
+                request.transportationNetworkCompanyEtaAtOrigin = earliestEta;
+            }
+        }
 
         if (pathComparator != null)
             request.pathComparator = pathComparator;

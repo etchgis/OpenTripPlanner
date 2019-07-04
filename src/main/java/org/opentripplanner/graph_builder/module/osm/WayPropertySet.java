@@ -1,6 +1,7 @@
 package org.opentripplanner.graph_builder.module.osm;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,7 @@ import java.util.regex.Pattern;
 
 import org.opentripplanner.common.model.P2;
 import org.opentripplanner.common.model.T2;
+import org.opentripplanner.openstreetmap.model.OSMWay;
 import org.opentripplanner.openstreetmap.model.OSMWithTags;
 import org.opentripplanner.routing.alertpatch.Alert;
 import org.opentripplanner.routing.edgetype.StreetTraversalPermission;
@@ -379,6 +381,27 @@ public class WayPropertySet {
 		picker.specifier = new OSMSpecifier(spec);
 		picker.speed = speed;
 		addSpeedPicker(picker);
-	}
+    }
+    
+    private String getFirstParkingLaneProperty(OSMWay way) {
+        List<String> parkingTags = Arrays
+                .asList("parking:lane:both", "parking:lane:right", "parking:lane:left");
+        for (String parkingTag : parkingTags) {
+            String value = way.getTag(parkingTag);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+    // Determining whether this edge is suitable for TNC stops
+    public boolean isSuitableForTNCStop(OSMWay way) {
+        String parkingLaneProperty = getFirstParkingLaneProperty(way);
+        // assume this is a suitable place if no property exists
+        if (parkingLaneProperty == null)
+            return true;
+        // return false if this way is marked as no stopping or a fire lane
+        return !parkingLaneProperty.equals("no_stopping") && !parkingLaneProperty.equals("fire_lane");
+    }
 
 }
