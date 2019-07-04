@@ -110,7 +110,7 @@ public abstract class GraphPathToTripPlanConverter {
         long bestNonTransitTime = Long.MAX_VALUE;
         List<Itinerary> itineraries = new LinkedList<>();
         for (GraphPath path : paths) {
-            Itinerary itinerary = generateItinerary(path, request.showIntermediateStops, request.disableAlertFiltering, requestedLocale);
+            Itinerary itinerary = generateItinerary(path, request.showIntermediateStops, request.addTurnByTurn, request.disableAlertFiltering, requestedLocale);
             itinerary = adjustItinerary(request, itinerary);
             if(itinerary.transitTime == 0 && itinerary.walkTime < bestNonTransitTime) {
                 bestNonTransitTime = itinerary.walkTime;
@@ -186,9 +186,10 @@ public abstract class GraphPathToTripPlanConverter {
      *
      * @param path The graph path to base the itinerary on
      * @param showIntermediateStops Whether to include intermediate stops in the itinerary or not
+     * @param addTurnByTurn Whether to include turn-by-turn directions ("steps") or not
      * @return The generated itinerary
      */
-    public static Itinerary generateItinerary(GraphPath path, boolean showIntermediateStops, boolean disableAlertFiltering, Locale requestedLocale) {
+    public static Itinerary generateItinerary(GraphPath path, boolean showIntermediateStops, boolean addTurnByTurn, boolean disableAlertFiltering, Locale requestedLocale) {
         Itinerary itinerary = new Itinerary();
 
         State[] states = new State[path.states.size()];
@@ -212,7 +213,8 @@ public abstract class GraphPathToTripPlanConverter {
             itinerary.addLeg(generateLeg(graph, legStates, showIntermediateStops, disableAlertFiltering, requestedLocale));
         }
 
-        addWalkSteps(graph, itinerary.legs, legsStates, requestedLocale);
+        if (addTurnByTurn)
+            addWalkSteps(graph, itinerary.legs, legsStates, requestedLocale);
 
         fixupLegs(itinerary.legs, legsStates);
 

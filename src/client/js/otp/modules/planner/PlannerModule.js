@@ -363,6 +363,8 @@ otp.modules.planner.PlannerModule =
             if(this.minTransferTime) queryParams.minTransferTime = this.minTransferTime;
             if(this.showIntermediateStops) queryParams.showIntermediateStops = this.showIntermediateStops;
 
+            queryParams.addTurnByTurn = false;
+
             if(otp.config.routerId !== undefined) {
                 queryParams.routerId = otp.config.routerId;
             }

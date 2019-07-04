@@ -200,6 +200,10 @@ public abstract class RoutingResource {
     @QueryParam("showIntermediateStops")
     protected Boolean showIntermediateStops;
 
+    /** Whether turn-by-turn direction steps should be included */
+    @QueryParam("addTurnByTurn")
+    protected Boolean addTurnByTurn;
+
     /**
      * Prevents unnecessary transfers by adding a cost for boarding a vehicle. This is the cost that
      * is used when boarding while walking.
@@ -542,6 +546,9 @@ public abstract class RoutingResource {
 
         if (intermediatePlaces != null)
             request.setIntermediatePlacesFromStrings(intermediatePlaces);
+
+        if (addTurnByTurn != null)
+            request.addTurnByTurn = addTurnByTurn;
 
         if (preferredRoutes != null)
             request.setPreferredRoutes(preferredRoutes);

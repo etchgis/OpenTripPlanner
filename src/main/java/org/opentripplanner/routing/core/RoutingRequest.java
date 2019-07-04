@@ -131,6 +131,9 @@ public class RoutingRequest implements Cloneable, Serializable {
     /** Whether the planner should return intermediate stops lists for transit legs. */
     public boolean showIntermediateStops = false;
 
+    /** Whether the planner should calculate and provide turn-by-turn directions. */
+    public boolean addTurnByTurn = true;
+
     /** max walk/bike speed along streets, in meters per second */
     public double walkSpeed;
 
