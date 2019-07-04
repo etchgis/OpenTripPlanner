@@ -51,6 +51,13 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
         floatingBikeSource.setUrl(baseUrl + "free_bike_status.json");
     }
 
+    public void setAuthToken (String token) {
+        String bearer = "Bearer " + token;
+        stationInformationSource.setHeader("Authorization", bearer);
+        stationStatusSource.setHeader("Authorization", bearer);
+        floatingBikeSource.setHeader("Authorization", bearer);
+    }
+
     public void setVehicleType (String type) {
         if (type == null || type.isEmpty())
             type = "bike";
@@ -116,12 +123,16 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
     public void configure (Graph graph, JsonNode jsonNode) {
         // path() returns MissingNode not null, allowing chained function calls.
         String url = jsonNode.path("url").asText();
-        if (url == null) {
+        if (url.isEmpty()) {
             throw new IllegalArgumentException("Missing mandatory 'url' configuration.");
         }
         this.setBaseUrl(url);
+        String authToken = jsonNode.path("authToken").asText();
+        if (!authToken.isEmpty()) {
+            this.setAuthToken(authToken);
+        }
         String vehicleType = jsonNode.path("vehicleType").asText();
-        if (vehicleType != null) {
+        if (!vehicleType.isEmpty()) {
             LOG.info("All rented vehicles will be treated as a " + vehicleType + ".");
             this.setVehicleType(vehicleType);
         }
@@ -182,7 +193,7 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
             brstation.name = new NonLocalizedString(stationNode.path("name").asText());
             brstation.x = stationNode.path("lon").asDouble();
             brstation.y = stationNode.path("lat").asDouble();
-            brstation.vehicleType = stationNode.path("vehicle_type").toString();
+            brstation.vehicleType = stationNode.path("vehicle_type").asText();
             brstation.bikesAvailable = 1;
             brstation.spacesAvailable = 0;
             brstation.allowDropoff = false;
