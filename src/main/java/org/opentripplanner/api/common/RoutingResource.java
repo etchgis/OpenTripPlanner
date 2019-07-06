@@ -422,6 +422,12 @@ public abstract class RoutingResource {
     @QueryParam("searchTimeout")
     protected Long searchTimeout;
 
+    @QueryParam("driveTimeReluctance")
+    protected Double driveTimeReluctance;
+
+    @QueryParam("driveDistanceReluctance")
+    protected Double driveDistanceReluctance;
+
     /**
      * Set the method of sorting itineraries in the response. Right now, the only supported value is "duration";
      * otherwise it uses default sorting. More sorting methods may be added in the future.
@@ -699,6 +705,12 @@ public abstract class RoutingResource {
 
         if (minTransitDistance != null)
             request.minTransitDistance = minTransitDistance;
+
+        if (driveTimeReluctance != null)
+            request.driveTimeReluctance = driveTimeReluctance;
+
+        if (driveDistanceReluctance != null)
+            request.driveDistanceReluctance = driveDistanceReluctance;
 
         if (searchTimeout != null)
             request.searchTimeout = searchTimeout;
