@@ -1,6 +1,10 @@
 package org.opentripplanner.routing.core;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.opentripplanner.model.FeedScopedId;
@@ -107,6 +111,7 @@ public class State implements Cloneable {
         this.vertex = vertex;
         this.backEdge = backEdge;
         this.backState = null;
+        this.time = timeSeconds * 1000;
         this.stateData = new StateData(options);
         // note that here we are breaking the circular reference between rctx and options
         // this should be harmless since reversed clones are only used when routing has finished
@@ -124,9 +129,15 @@ public class State implements Cloneable {
             this.stateData.nonTransitMode = this.stateData.bikeParked ? TraverseMode.WALK
                     : TraverseMode.BICYCLE;
         }
-        // if allowed to hail a car, initialize state with CAR mode if we're already in a hailed car
+        // if allowed to hail a car, initialize state with CAR mode if the first seen StreetEdge allows cars and a TNC
+        // stop would be allowed there
         else if (options.useTransportationNetworkCompany) {
-            this.stateData.nonTransitMode = this.stateData.usingHailedCar ? TraverseMode.CAR : TraverseMode.WALK;
+            StreetEdge firstStreetEdge = getFirstSeenStreetEdge(vertex);
+            if (firstStreetEdge.getPermission().allows(TraverseMode.CAR) && isTNCStopAllowed(firstStreetEdge)) {
+                boardHailedCar(0);
+            } else {
+                stateData.nonTransitMode = TraverseMode.WALK;
+            }
         }
         this.walkDistance = 0;
         this.preTransitTime = 0;
@@ -339,7 +350,7 @@ public class State implements Cloneable {
         boolean bikeParkAndRideOk = false;
         boolean carParkAndRideOk = false;
         boolean tncOK = !stateData.opt.useTransportationNetworkCompany || (
-            isEverBoarded() &&
+            //isEverBoarded() &&    // uncomment to force a transit leg
                     (!isUsingHailedCar() || isTNCStopAllowed())
         );
         if (stateData.opt.arriveBy) {
@@ -929,17 +940,86 @@ public class State implements Cloneable {
     }
 
     /**
+      * Search from a vertex until a StreetEdge is found.
+      */
+    private StreetEdge getFirstSeenStreetEdge(Vertex vertex) {
+        Collection<Edge> curEdges = getOptions().arriveBy ? vertex.getIncoming() : vertex.getOutgoing();
+        Set<Vertex> seenVertices = new HashSet<>();
+        seenVertices.add(vertex);
+        int maxBreadth = 5;
+        int curBreadth = 1;
+        while (curEdges.size() > 0 && curBreadth < maxBreadth) {
+            List<Edge> nextEdges = new ArrayList<>();
+            for (Edge edge : curEdges) {
+                if (edge instanceof StreetEdge) {
+                    return (StreetEdge) edge;
+                }
+                Vertex nextVertex = getOptions().arriveBy ? edge.getFromVertex() : edge.getToVertex();
+                if (seenVertices.contains(nextVertex)) {
+                    continue;
+                }
+                nextEdges.addAll(getOptions().arriveBy ? nextVertex.getIncoming() : nextVertex.getOutgoing());
+                seenVertices.add(nextVertex);
+            }
+            curEdges = nextEdges;
+            curBreadth++;
+        }
+        throw new IllegalStateException("Too many rounds of searching for a StreetEdge encountered");
+    }
+
+     public void boardHailedCar(double initialEdgeDistance) {
+        stateData.usingHailedCar = true;
+        stateData.nonTransitMode = TraverseMode.CAR;
+        RoutingRequest options = getOptions();
+        if (isEverBoarded()) {
+            if (options.arriveBy) {
+                stateData.hasHailedCarPreTransit = true;
+            } else {
+                stateData.hasHailedCarPostTransit = true;
+            }
+        } else {
+            if (options.arriveBy) {
+                stateData.hasHailedCarPostTransit = true;
+            } else {
+                stateData.hasHailedCarPreTransit = true;
+
+                // add the earliest ETA of a TNC vehicle if using "departing at" mode and if before transit.
+                // This uses the ETA of a TNC vehicle at the origin, so this code is making the assumption that the ETA
+                // estimate obtained for the origin is applicable at other places and times so long as transit has not been
+                // boarded yet.  The way to obtain ETA estimates for every possible street and vertex would involve making
+                // potentially hundreds of thousands of http requests to existing TNC API endpoints.  It sure would be nice
+                // if there were a way to download network-wide ETA estimates in a single request, but that option currently
+                // does not exist.
+                //
+                // FIXME: If a non-transit mode travels a significant distance from the origin prior to boarding a TNC, the
+                // ETA will still be added when it probably shouldn't be.
+                if (options.transportationNetworkCompanyEtaAtOrigin > -1 && !stateData.everBoarded) {
+                    // increment the time by the ETA at the origin.
+                    time += options.transportationNetworkCompanyEtaAtOrigin * 1000;
+                }
+            }
+        }
+
+        // Add the initial TNC distance as the first StreetEdge traversed is done so while the usingHailedCar flag is
+        // still set to false
+        transportationNetworkCompanyDriveDistance = initialEdgeDistance;
+    }
+
+    public boolean isTNCStopAllowed() {
+        return isTNCStopAllowed(getLastSeenStreetEdge(this));
+    }
+
+    /**
       * Checks if a TNC stop (alighting or boarding) should be allowed given the current state and
       * characteristics of the last seen street edge.
       */
-    public boolean isTNCStopAllowed() {
+    public boolean isTNCStopAllowed(StreetEdge theEdge) {
         // Make sure travel distance in car is greater than minimum distance
         if (this.transportationNetworkCompanyDriveDistance <
                 this.stateData.opt.minimumTransportationNetworkCompanyDistance) {
             return false;
         }
-        // see if street edge forbids parking
-        StreetEdge theEdge = getLastSeenStreetEdge(this);
+        // see if street edge has some kind of characteristic that forbids TNC pickups/dropoffs
         if (!theEdge.getTNCStopSuitability())
             return false;
         return true;
