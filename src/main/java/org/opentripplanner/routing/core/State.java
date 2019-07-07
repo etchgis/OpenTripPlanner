@@ -344,23 +344,23 @@ public class State implements Cloneable {
      */
     public boolean isFinal() {
         // When drive-to-transit is enabled, we need to check whether the car has been parked (or whether it has been picked up in reverse).
-        boolean parkAndRide = stateData.opt.parkAndRide || stateData.opt.kissAndRide;
-        boolean bikeParkAndRide = stateData.opt.bikeParkAndRide;
+        //boolean parkAndRide = stateData.opt.parkAndRide || stateData.opt.kissAndRide;
+        //boolean bikeParkAndRide = stateData.opt.bikeParkAndRide;
         boolean bikeRentingOk = !isBikeRenting() || (isFloatingBike() && isFloatingBikeDropOffAllowed());
-        boolean bikeParkAndRideOk = false;
-        boolean carParkAndRideOk = false;
+        //boolean bikeParkAndRideOk = false;
+        //boolean carParkAndRideOk = false;
         boolean tncOK = !stateData.opt.useTransportationNetworkCompany || (
             //isEverBoarded() &&    // uncomment to force a transit leg
                     (!isUsingHailedCar() || isTNCStopAllowed())
         );
-        if (stateData.opt.arriveBy) {
-            bikeParkAndRideOk = !bikeParkAndRide || !isBikeParked();
-            carParkAndRideOk = !parkAndRide || !isCarParked();
-        } else {
-            bikeParkAndRideOk = !bikeParkAndRide || isBikeParked();
-            carParkAndRideOk = !parkAndRide || isCarParked();
-        }
-        return bikeRentingOk && bikeParkAndRideOk && carParkAndRideOk && tncOK;
+        //if (stateData.opt.arriveBy) {
+        //    bikeParkAndRideOk = !bikeParkAndRide || !isBikeParked();
+        //    carParkAndRideOk = !parkAndRide || !isCarParked();
+        //} else {
+        //    bikeParkAndRideOk = !bikeParkAndRide || isBikeParked();
+        //    carParkAndRideOk = !parkAndRide || isCarParked();
+        //}
+        return bikeRentingOk /*&& bikeParkAndRideOk && carParkAndRideOk*/ && tncOK;
     }
 
     public Stop getPreviousStop() {
