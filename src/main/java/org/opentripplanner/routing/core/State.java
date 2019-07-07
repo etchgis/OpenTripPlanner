@@ -299,7 +299,7 @@ public class State implements Cloneable {
         boolean bikeParkAndRideOk = false;
         boolean carParkAndRideOk = false;
         boolean tncOK = !stateData.opt.useTransportationNetworkCompany || (
-            isEverBoarded() &&
+            //isEverBoarded() &&    // uncomment to force a transit leg
                     (!isUsingHailedCar() || isTNCStopAllowed())
         );
         if (stateData.opt.arriveBy) {
