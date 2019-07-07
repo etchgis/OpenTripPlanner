@@ -265,21 +265,21 @@ public class State implements Cloneable {
      */
     public boolean isFinal() {
         // When drive-to-transit is enabled, we need to check whether the car has been parked (or whether it has been picked up in reverse).
-        boolean parkAndRide = stateData.opt.parkAndRide || stateData.opt.kissAndRide;
-        boolean bikeParkAndRide = stateData.opt.bikeParkAndRide;
+        //boolean parkAndRide = stateData.opt.parkAndRide || stateData.opt.kissAndRide;
+        //boolean bikeParkAndRide = stateData.opt.bikeParkAndRide;
         boolean bikeRentingOk = false;
-        boolean bikeParkAndRideOk = false;
-        boolean carParkAndRideOk = false;
+        //boolean bikeParkAndRideOk = false;
+        //boolean carParkAndRideOk = false;
         if (stateData.opt.arriveBy) {
             bikeRentingOk = !isBikeRenting();
-            bikeParkAndRideOk = !bikeParkAndRide || !isBikeParked();
-            carParkAndRideOk = !parkAndRide || !isCarParked();
+            //bikeParkAndRideOk = !bikeParkAndRide || !isBikeParked();
+            //carParkAndRideOk = !parkAndRide || !isCarParked();
         } else {
             bikeRentingOk = !isBikeRenting();
-            bikeParkAndRideOk = !bikeParkAndRide || isBikeParked();
-            carParkAndRideOk = !parkAndRide || isCarParked();
+            //bikeParkAndRideOk = !bikeParkAndRide || isBikeParked();
+            //carParkAndRideOk = !parkAndRide || isCarParked();
         }
-        return bikeRentingOk && bikeParkAndRideOk && carParkAndRideOk;
+        return bikeRentingOk /*&& bikeParkAndRideOk && carParkAndRideOk*/;
     }
 
     public Stop getPreviousStop() {
