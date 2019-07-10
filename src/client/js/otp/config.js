@@ -5,7 +5,7 @@ otp.config = {
     //If enabled it shows inspector layers overlays which can be used for Graph
     //debugging
     //Can be also enabled in URL parameters as ?debug_layers=true
-    debug_layers: false,
+    debug_layers: true,
 
     //This is default locale when wanted locale isn't found
     //Locale language is set based on wanted language in url >
@@ -76,6 +76,10 @@ otp.config = {
             attribution : 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.'
         },
         {
+            name: 'Satellite',
+            tileUrl: 'https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token=pk.eyJ1IjoiZXRjaGpvbiIsImEiOiJjanh3bzA1d2UwNHNyM25ucW5qa3M2cHY0In0.kdVcGH7h49TKntYLjntBzQ'
+        },
+        {
             name: 'Carto Positron',
             tileUrl: 'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
             attribution : 'Map tiles by Carto/MapZen. Map data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.'
@@ -122,14 +126,14 @@ otp.config = {
      * Site name / description / branding display options
      */
 
-    siteName            : "My OTP Instance",
+    siteName            : "Etch OTP",
     siteDescription     : "An OpenTripPlanner deployment.",
     logoGraphic         : 'images/otp_logo_darkbg_40px.png',
     // bikeshareName    : "",
     //Enable this if you want to show frontend language chooser
     showLanguageChooser : true,
 
-    showLogo            : true,
+    showLogo            : false,
     showTitle           : true,
     showModuleSelector  : true,
     metric              : false,
