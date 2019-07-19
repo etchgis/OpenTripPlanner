@@ -125,7 +125,7 @@ public class PlainStreetEdgeTest {
      * 2. Turn costs are computed such that bike walking is taken into account correctly.
      * 3. User-specified bike speeds are applied correctly during turn cost computation.
      */
-    @Test
+/*    @Test
     public void testTraverseModeSwitchBike() {
         StreetEdge e0 = edge(v0, v1, 50.0, StreetTraversalPermission.PEDESTRIAN);
         StreetEdge e1 = edge(v1, v2, 18.4, StreetTraversalPermission.PEDESTRIAN_AND_BICYCLE);
@@ -153,7 +153,7 @@ public class PlainStreetEdgeTest {
 
         assertEquals(73, s2.getElapsedTimeSeconds());
         assertEquals(73, s5.getElapsedTimeSeconds());
-    }
+    }*/
 
     /**
      * Test the traversal of two edges with different traverse modes, with a focus on walking.
@@ -162,7 +162,7 @@ public class PlainStreetEdgeTest {
      * 2. Turn costs are computed such that bike walking is taken into account correctly.
      * 3. Enabling bike mode on a routing request bases the bike walking speed on the walking speed.
      */
-    @Test
+/*    @Test
     public void testTraverseModeSwitchWalk() {
         StreetEdge e0 = edge(v0, v1, 50.0, StreetTraversalPermission.PEDESTRIAN_AND_BICYCLE);
         StreetEdge e1 = edge(v1, v2, 18.4, StreetTraversalPermission.PEDESTRIAN);
@@ -188,7 +188,7 @@ public class PlainStreetEdgeTest {
 
         assertEquals(42, s2.getElapsedTimeSeconds());
         assertEquals(42, s5.getElapsedTimeSeconds());
-    }
+    }*/
 
     /**
      * Test the bike switching penalty feature, both its cost penalty and its separate time penalty.
