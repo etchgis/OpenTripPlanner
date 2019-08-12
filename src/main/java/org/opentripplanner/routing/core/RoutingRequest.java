@@ -708,11 +708,6 @@ public class RoutingRequest implements Cloneable, Serializable {
     // Format is a number with a percent, ie: 50%
     public String minTransitDistance;
 
-    // allow custom shortest path search timeouts
-    // set to -1 by default which means don't use a custom timeout
-    // units are in milliseconds
-    public long searchTimeout = -1;
-
     /**
      * Keep track of epoch time the request was created by OTP. This is currently only used by the
      * GTFS-Flex implementation.
@@ -1314,7 +1309,6 @@ public class RoutingRequest implements Cloneable, Serializable {
                 && disableAlertFiltering == other.disableAlertFiltering
                 && geoidElevation == other.geoidElevation
                 && minTransitDistance == other.minTransitDistance
-                && searchTimeout == other.searchTimeout
                 && flexFlagStopExtraPenalty == other.flexFlagStopExtraPenalty
                 && flexDeviatedRouteExtraPenalty == other.flexDeviatedRouteExtraPenalty
                 && flexCallAndRideReluctance == other.flexCallAndRideReluctance
