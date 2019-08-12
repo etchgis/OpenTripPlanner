@@ -185,6 +185,17 @@ public class GraphBuilderParameters {
     public final Boolean extraEdgesStopPlatformLink;
 
     /**
+     * An optional url or file with GeoJson polygons that represent areas where micromobility travel is forbidden.
+     */
+    public final String micromobilityTravelRestrictionsUrlOrFile;
+
+    /**
+     * An optional url or file with GeoJson polygons that represent areas where micromobility vehicle rental dropoffs
+     * are forbidden.
+     */
+    public String micromobilityDropoffRestrictionsUrlOrFile;
+
+    /**
      * Set all parameters from the given Jackson JSON tree, applying defaults.
      * Supplying MissingNode.getInstance() will cause all the defaults to be applied.
      * This could be done automatically with the "reflective query scraper" but it's less type safe and less clear.
@@ -220,6 +231,10 @@ public class GraphBuilderParameters {
         banDiscouragedBiking = config.path("banDiscouragedBiking").asBoolean(false);
         maxTransferDistance = config.path("maxTransferDistance").asDouble(2000);
         extraEdgesStopPlatformLink = config.path("extraEdgesStopPlatformLink").asBoolean(false);
+        String value = config.path("micromobilityTravelRestrictionsUrlOrFile").asText();
+        micromobilityTravelRestrictionsUrlOrFile = value.isEmpty() ? null : value;
+        value = config.path("micromobilityDropoffRestrictionsUrlOrFile").asText();
+        micromobilityDropoffRestrictionsUrlOrFile = value.isEmpty() ? null : value;
     }
 
 

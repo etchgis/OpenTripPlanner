@@ -2,7 +2,6 @@ package org.opentripplanner.updater.bike_rental;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.Sets;
-//import org.opentripplanner.routing.bike_rental.BikeRentalRegion;
 import org.opentripplanner.routing.bike_rental.BikeRentalStation;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.updater.JsonConfigurable;
@@ -26,7 +25,6 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
     private String baseUrl;
 
     private String networkName;
-    private String vehicleType;
 
     /** Some car rental systems and flex transit systems work exactly like bike rental, but with cars. */
     private boolean routeAsCar;
@@ -40,7 +38,6 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
         } else {
             this.networkName = "GBFS";
         }
-        this.setVehicleType(null);
     }
 
     public void setBaseUrl (String url) {
@@ -57,13 +54,6 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
         stationStatusSource.setHeader("Authorization", bearer);
         floatingBikeSource.setHeader("Authorization", bearer);
     }
-
-    public void setVehicleType (String type) {
-        if (type == null || type.isEmpty())
-            type = "bike";
-        this.vehicleType = type;
-    }
-
     @Override
     public boolean update() {
         // These first two GBFS files are required.
@@ -100,21 +90,11 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
 
         // Set identical network ID on all stations
         Set<String> networkIdSet = Sets.newHashSet(this.networkName);
-        for (BikeRentalStation station : stations) {
-            station.networks = networkIdSet;
-            if (station.vehicleType == null || station.vehicleType.isEmpty()) {
-                station.vehicleType = this.vehicleType;
-            }
-        }
+        for (BikeRentalStation station : stations) station.networks = networkIdSet;
 
         return stations;
     }
-/*
-    @Override
-    public List<BikeRentalRegion> getRegions() {
-        return new ArrayList<>();
-    }
-*/
+
     /**
      * Note that the JSON being passed in here is for configuration of the OTP component, it's completely separate
      * from the JSON coming in from the update source.
@@ -130,11 +110,6 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
         String authToken = jsonNode.path("authToken").asText();
         if (!authToken.isEmpty()) {
             this.setAuthToken(authToken);
-        }
-        String vehicleType = jsonNode.path("vehicleType").asText();
-        if (!vehicleType.isEmpty()) {
-            LOG.info("All rented vehicles will be treated as a " + vehicleType + ".");
-            this.setVehicleType(vehicleType);
         }
         this.routeAsCar = jsonNode.path("routeAsCar").asBoolean(false);
         if (routeAsCar) {
@@ -193,7 +168,6 @@ public class GbfsBikeRentalDataSource implements BikeRentalDataSource, JsonConfi
             brstation.name = new NonLocalizedString(stationNode.path("name").asText());
             brstation.x = stationNode.path("lon").asDouble();
             brstation.y = stationNode.path("lat").asDouble();
-            brstation.vehicleType = stationNode.path("vehicle_type").asText();
             brstation.bikesAvailable = 1;
             brstation.spacesAvailable = 0;
             brstation.allowDropoff = false;

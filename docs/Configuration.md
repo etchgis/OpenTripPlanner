@@ -326,6 +326,21 @@ such as:
 
 There is currently only one custom naming module called `portland` (which has no parameters).
 
+### Micromobility Restrictions
+
+It is possible to load in restricted micromobility travel and rental parking areas that will be applied throughout the graph.
+There are two separate keys that can be added to describe either areas where travel is forbidden or where parking floating 
+rental vehicles is forbidden. Each file must contain GeoJson with a Feature or FeatureCollection that contains only Polygons 
+or MultiPolygons. The values of these keys can be either a url or a file path. For example: 
+
+```JSON
+// build-config.json
+{
+  "micromobilityTravelRestrictionsUrlOrFile": "file:/some/path/no_riding_zones.geojson",
+  "micromobilityDropoffRestrictionsUrlOrFile": "http://example.com/no_parking_zones.geojson"
+}
+```
+
 
 # Runtime router configuration
 
@@ -349,7 +364,7 @@ internally that are not exposed via the API. You may want to change the default 
 i.e. the value which will be applied unless it is overridden in a web API request.
 
 A full list of them can be found in the RoutingRequest class
-[in the Javadoc](http://dev.opentripplanner.org/javadoc/1.3.0/org/opentripplanner/routing/core/RoutingRequest.html).
+[in the Javadoc](http://dev.opentripplanner.org/javadoc/master/org/opentripplanner/routing/core/RoutingRequest.html).
 Any public field or setter method in this class can be given a default value using the routingDefaults section of
 `router-config.json` as follows:
 

@@ -59,7 +59,12 @@ public class RouterInfo {
         addCenter(graph.getCenter());
         service = graph.getService(BikeRentalStationService.class, false);
         hasParkRide = graph.hasParkRide;
-        travelOptions = TravelOptionsMaker.makeOptions(graph);
+        travelOptions = TravelOptionsMaker.makeOptions(
+            graph.getTransitModes(),
+            graph.hasBikeSharing || getHasBikeSharing(),
+            graph.hasBikeRide || getHasBikePark(),
+            graph.hasParkRide
+        );
     }
 
     public boolean getHasBikeSharing() {

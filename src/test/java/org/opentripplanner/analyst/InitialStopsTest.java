@@ -3,6 +3,7 @@ package org.opentripplanner.analyst;
 import gnu.trove.iterator.TIntIntIterator;
 import gnu.trove.map.TIntIntMap;
 import junit.framework.TestCase;
+import junit.framework.TestResult;
 import org.joda.time.LocalDate;
 import org.junit.Test;
 import org.opentripplanner.analyst.cluster.TaskStatistics;
@@ -10,11 +11,16 @@ import org.opentripplanner.api.parameter.QualifiedModeSet;
 import org.opentripplanner.profile.ProfileRequest;
 import org.opentripplanner.profile.RaptorWorkerData;
 import org.opentripplanner.profile.RepeatedRaptorProfileRouter;
+import org.opentripplanner.profile.TimeWindow;
+import org.opentripplanner.routing.algorithm.AStar;
+import org.opentripplanner.routing.core.RoutingRequest;
 import org.opentripplanner.routing.core.TraverseModeSet;
 import org.opentripplanner.routing.graph.Graph;
-import org.opentripplanner.routing.impl.DefaultStreetVertexIndexFactory;
 
-import static org.opentripplanner.graph_builder.module.FakeGraph.*;
+import static org.opentripplanner.graph_builder.module.FakeGraph.addRegularStopGrid;
+import static org.opentripplanner.graph_builder.module.FakeGraph.addTransitMultipleLines;
+import static org.opentripplanner.graph_builder.module.FakeGraph.buildGraphNoTransit;
+import static org.opentripplanner.graph_builder.module.FakeGraph.indexGraphAndLinkStations;
 
 /**
  * Test the code that finds initial transit stops.
@@ -35,8 +41,7 @@ public class InitialStopsTest extends TestCase {
         Graph g = buildGraphNoTransit();
         addRegularStopGrid(g);
         addTransitMultipleLines(g);
-        link(g);
-        g.index(new DefaultStreetVertexIndexFactory());
+        indexGraphAndLinkStations(g);
 
         ProfileRequest req = new ProfileRequest();
         req.fromLon = req.toLon = -83.0118;
@@ -94,8 +99,7 @@ public class InitialStopsTest extends TestCase {
         Graph g = buildGraphNoTransit();
         addRegularStopGrid(g);
         addTransitMultipleLines(g);
-        link(g);
-        g.index(new DefaultStreetVertexIndexFactory());
+        indexGraphAndLinkStations(g);
 
         ProfileRequest req = new ProfileRequest();
         req.fromLon = req.toLon = -83.0118;

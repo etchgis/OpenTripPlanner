@@ -1,6 +1,10 @@
 package org.opentripplanner.api.common;
 
-import java.util.*;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.List;
+import java.util.TimeZone;
 
 import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
@@ -411,12 +415,52 @@ public abstract class RoutingResource {
     @QueryParam("geoidElevation")
     private Boolean geoidElevation;
 
+    /*
+     * A comma separated list of provider companies to use in the routing request
+     */
+    @QueryParam("companies")
+    protected String companies;
+
     /**
      * Set the method of sorting itineraries in the response. Right now, the only supported value is "duration";
      * otherwise it uses default sorting. More sorting methods may be added in the future.
      */
     @QueryParam("pathComparator")
     private String pathComparator;
+
+    /**
+     * The amount of watts a Micromobility vehicle can sustainably output
+     */
+    @QueryParam("watts")
+    private Double watts;
+
+    /**
+     * The weight of the Micromobility vehicle and all things transported by the vehicle including the rider
+     */
+    @QueryParam("weight")
+    private Double weight;
+
+    /**
+     * The minimum speed of a personal micromobility vehicle. This should only be used to avoid unreasonably slow times
+     * on hills. If it is desired to model effectively impossible travel uphill (ie the vehicle can't reasonably be
+     * transported up a steep enough grade) enter 0. Value in m/s. If this parameter is not provided, a default of
+     * 0.8 m/s is set in the RoutingRequest class.
+     * TODO: A future refactor of the code will update StateData data with this value if using a personal micromobility
+     *   vehicle or with data describing the rental vehicle characteristics.
+     */
+    @QueryParam("minimumMicromobilitySpeed")
+    private Double minimumMicromobilitySpeed;
+
+    /**
+     * The maximum speed of a personal micromobility vehicle. This will cap all speeds on declines to this value even if
+     * the physics of the downslope would naturally result in the vehicle traveling faster than this value (ie, the user
+     * or the vehicle itself is assumed to be braking). Value in m/s. If this parameter is not provided, a default of
+     * 5 m/s is set in the RoutingRequest class.
+     * TODO: A future refactor of the code will update StateData data with this value if using a personal micromobility
+     *   vehicle or with data describing the rental vehicle characteristics.
+     */
+    @QueryParam("maximumMicromobilitySpeed")
+    private Double maximumMicromobilitySpeed;
 
     /* 
      * somewhat ugly bug fix: the graphService is only needed here for fetching per-graph time zones. 
@@ -640,6 +684,7 @@ public abstract class RoutingResource {
         final long NOW_THRESHOLD_MILLIS = 15 * 60 * 60 * 1000;
         boolean tripPlannedForNow = Math.abs(request.getDateTime().getTime() - new Date().getTime()) < NOW_THRESHOLD_MILLIS;
         request.useBikeRentalAvailabilityInformation = (tripPlannedForNow); // TODO the same thing for GTFS-RT
+        request.useVehicleRentalAvailabilityInformation = (tripPlannedForNow);
 
         if (startTransitStopId != null && !startTransitStopId.isEmpty())
             request.startingTransitStopId = FeedScopedId.convertFromString(startTransitStopId);
@@ -683,8 +728,22 @@ public abstract class RoutingResource {
         if (geoidElevation != null)
             request.geoidElevation = geoidElevation;
 
+        request.companies = companies;
+
         if (pathComparator != null)
             request.pathComparator = pathComparator;
+
+        if (watts != null)
+            request.watts = watts;
+
+        if (weight != null)
+            request.weight = weight;
+
+        if (minimumMicromobilitySpeed != null)
+            request.minimumMicromobilitySpeed = minimumMicromobilitySpeed;
+
+        if (maximumMicromobilitySpeed != null)
+            request.maximumMicromobilitySpeed = maximumMicromobilitySpeed;
 
         //getLocale function returns defaultLocale if locale is null
         request.locale = ResourceBundleSingleton.INSTANCE.getLocale(locale);

@@ -230,6 +230,7 @@ public class GraphBuilder implements Runnable {
             osmModule.staticParkAndRide = builderParams.staticParkAndRide;
             osmModule.banDiscouragedWalking = builderParams.banDiscouragedWalking;
             osmModule.banDiscouragedBiking = builderParams.banDiscouragedBiking;
+            osmModule.loadMicromobilityTravelRestrictions(builderParams);
             graphBuilder.addModule(osmModule);
             PruneFloatingIslands pruneFloatingIslands = new PruneFloatingIslands();
             pruneFloatingIslands.setPruningThresholdIslandWithoutStops(builderParams.pruningThresholdIslandWithoutStops);

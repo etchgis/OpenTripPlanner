@@ -7,6 +7,9 @@ public class SlopeCosts {
     public final double maxSlope; // Max{abs(slope)}
     public final double slopeSafetyCost; // An additional safety cost caused by the slope
     public final double lengthMultiplier; // Multiplier to get true length based on flat (projected) length
+    public final byte[] gradients; // array of gradients as percents
+    public final short[] gradientLengths; // array of the length of each gradient in meters
+    public final double maximumDragResistiveForceComponent; // the maximum resistive drag force component along an edge
 
     /**
      * The distance ajusted to incorporate the effect of the slope. Let say the
@@ -17,7 +20,8 @@ public class SlopeCosts {
     public final double effectiveWalkFactor;
     
     SlopeCosts(double slopeSpeedFactor, double slopeWorkFactor, double slopeSafetyCost,
-                      double maxSlope, double lengthMultiplier, boolean flattened, double effectiveWalkFactor) {
+                      double maxSlope, double lengthMultiplier, boolean flattened, double effectiveWalkFactor,
+                      byte[] gradients, short[] gradientLengths, double maximumDragResistiveForceComponent) {
         this.slopeSpeedFactor = slopeSpeedFactor;
         this.slopeWorkFactor = slopeWorkFactor;
         this.slopeSafetyCost = slopeSafetyCost;
@@ -25,5 +29,8 @@ public class SlopeCosts {
         this.lengthMultiplier = lengthMultiplier;
         this.flattened = flattened;
         this.effectiveWalkFactor = effectiveWalkFactor;
+        this.gradients = gradients;
+        this.gradientLengths = gradientLengths;
+        this.maximumDragResistiveForceComponent = maximumDragResistiveForceComponent;
     }
 }

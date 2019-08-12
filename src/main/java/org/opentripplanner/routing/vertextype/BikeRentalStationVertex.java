@@ -4,7 +4,6 @@ import org.opentripplanner.common.MavenVersion;
 import org.opentripplanner.routing.bike_rental.BikeRentalStation;
 import org.opentripplanner.routing.core.TraverseMode;
 import org.opentripplanner.routing.graph.Graph;
-import org.opentripplanner.routing.graph.Vertex;
 
 import java.util.Set;
 
@@ -17,7 +16,7 @@ import java.util.Set;
  *
  * TODO if we continue using this for car rental and flex systems, change name to VehicleRentalStationVertex
  */
-public class BikeRentalStationVertex extends Vertex {
+public class BikeRentalStationVertex extends RentalStationVertex {
 
     private static final long serialVersionUID = MavenVersion.VERSION.getUID();
 
@@ -26,32 +25,22 @@ public class BikeRentalStationVertex extends Vertex {
     private int spacesAvailable;
 
     private boolean pickupAllowed;
-
-    public final boolean isFloatingBike;
-
     private String id;
 
     /** Some car rental systems and flex transit systems work exactly like bike rental, but with cars. */
     private boolean isCarStation;
 
-    /**
-     * List of compatible network names. Null (default) to be compatible with all.
-     */
-    public Set<String> networks;
-
-    private String vehicleType;
+    private Set<String> networks;
 
     public BikeRentalStationVertex(Graph g, BikeRentalStation station) {
         //FIXME: raw_name can be null if bike station is made from graph updater
         super(g, "bike rental station " + station.id, station.x, station.y, station.name);
         this.setId(station.id);
-        this.networks = station.networks;
         this.setBikesAvailable(station.bikesAvailable);
         this.setSpacesAvailable(station.spacesAvailable);
         this.isCarStation = station.isCarStation;
+        this.setNetworks(station.networks);
         this.setPickupAllowed(station.allowPickup);
-        this.isFloatingBike = station.isFloatingBike;
-        this.vehicleType = station.vehicleType;
     }
 
     public int getBikesAvailable() {
@@ -70,6 +59,10 @@ public class BikeRentalStationVertex extends Vertex {
         this.spacesAvailable = spaces;
     }
 
+    public Set<String> getNetworks() { return networks; }
+
+    public void setNetworks(Set<String> networks) { this.networks = networks; }
+
     public String getId() {
         return id;
     }
@@ -85,10 +78,6 @@ public class BikeRentalStationVertex extends Vertex {
      */
     public TraverseMode getVehicleMode () {
          return isCarStation ? TraverseMode.CAR : TraverseMode.BICYCLE;
-    }
-
-    public String getVehicleType() {
-        return vehicleType;
     }
 
     public boolean isPickupAllowed() {

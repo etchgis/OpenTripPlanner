@@ -227,6 +227,9 @@ public class Leg {
     public Boolean rentedBike;
 
     @JsonSerialize
+    public Boolean rentedVehicle;
+
+    @JsonSerialize
     public String vehicleType;
 
      /**
@@ -284,6 +287,7 @@ public class Leg {
         else if (mode.equals(TraverseMode.WALK.toString())) return false;
         else if (mode.equals(TraverseMode.CAR.toString())) return false;
         else if (mode.equals(TraverseMode.BICYCLE.toString())) return false;
+        else if (mode.equals(TraverseMode.MICROMOBILITY.toString())) return false;
         else return true;
     }
     

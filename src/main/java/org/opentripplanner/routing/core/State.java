@@ -1,19 +1,29 @@
 package org.opentripplanner.routing.core;
 
-import java.util.Date;
-import java.util.Set;
-
 import org.opentripplanner.model.FeedScopedId;
 import org.opentripplanner.model.Stop;
 import org.opentripplanner.model.Trip;
 import org.opentripplanner.routing.algorithm.NegativeWeightException;
-import org.opentripplanner.routing.edgetype.*;
+import org.opentripplanner.routing.edgetype.OnboardEdge;
+import org.opentripplanner.routing.edgetype.PatternInterlineDwell;
+import org.opentripplanner.routing.edgetype.StreetEdge;
+import org.opentripplanner.routing.edgetype.TablePatternEdge;
+import org.opentripplanner.routing.edgetype.TransitBoardAlight;
+import org.opentripplanner.routing.edgetype.TripPattern;
 import org.opentripplanner.routing.graph.Edge;
 import org.opentripplanner.routing.graph.Vertex;
 import org.opentripplanner.routing.trippattern.TripTimes;
+import org.opentripplanner.routing.vehicle_rental.VehicleRentalStationService;
 import org.opentripplanner.routing.vertextype.BikeRentalStationVertex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class State implements Cloneable {
     /* Data which is likely to change at most traversals */
@@ -45,6 +55,9 @@ public class State implements Cloneable {
 
     // The time traveled pre-transit, for park and ride or kiss and ride searches
     int preTransitTime;
+
+    // The current distance traveled in a vehicle rental
+    public double vehicleRentalDistance;
 
     // track the states of all path parsers -- probably changes frequently
     protected int[] pathParserStates;
@@ -91,8 +104,9 @@ public class State implements Cloneable {
     }
     
     /**
-     * Create an initial state, forcing vertex, back edge, time and start time to the specified values. Useful for starting
-     * a multiple initial state search, for example when propagating profile results to the street network in RoundBasedProfileRouter.
+     * Create an initial state, forcing vertex, back edge, time and start time to the specified values. Useful for
+     * starting a multiple initial state search, for example when propagating profile results to the street network in
+     * RoundBasedProfileRouter.
      */
     public State(Vertex vertex, Edge backEdge, long timeSeconds, long startTime, RoutingRequest options) {
         this.weight = 0;
@@ -104,8 +118,10 @@ public class State implements Cloneable {
         // this should be harmless since reversed clones are only used when routing has finished
         this.stateData.opt = options;
         this.stateData.startTime = startTime;
+        // set the current time of the state here as it could be pushed back further in certain queries with
+        // Transportation Network Companies enabled.
+        this.time = timeSeconds * 1000;
         this.stateData.usingRentedBike = false;
-        this.stateData.isFloatingBike = false;
         /* If the itinerary is to begin with a car that is left for transit, the initial state of arriveBy searches is
            with the car already "parked" and in WALK mode. Otherwise, we are in CAR mode and "unparked". */
         if (options.parkAndRide || options.kissAndRide) {
@@ -116,9 +132,31 @@ public class State implements Cloneable {
             this.stateData.nonTransitMode = this.stateData.bikeParked ? TraverseMode.WALK
                     : TraverseMode.BICYCLE;
         }
+        // Initialize the non-transit mode when a vehicle rental is possible.
+        else if (options.allowVehicleRental) {
+            if (options.arriveBy) {
+                // if searching with arriveBy mode, it is possible that the search ended with a rental car being dropped
+                // off at the target. See if that could be possible.
+                StreetEdge firstStreetEdge = getFirstSeenStreetEdge(vertex);
+                if (
+                    firstStreetEdge.getPermission().allows(TraverseMode.MICROMOBILITY) &&
+                        isVehicleRentalDropoffAllowed(firstStreetEdge, false)
+                ) {
+                    // looks like it is possible to have began renting a vehicle from the first seen street edge
+                    // begin the search with a rented vehicle in use.
+                    beginVehicleRenting(0, firstStreetEdge.getVehicleNetworks(), true);
+                } else {
+                    // not possible to have rented a car, start out in walk mode
+                    stateData.nonTransitMode = TraverseMode.WALK;
+                }
+            } else {
+                // always start depart at searches in WALK mode. Need to walk to a vehicle rental station in order to
+                // pick up a vehicle
+                stateData.nonTransitMode = TraverseMode.WALK;
+            }
+        }
         this.walkDistance = 0;
         this.preTransitTime = 0;
-        this.time = timeSeconds * 1000;
         stateData.routeSequence = new FeedScopedId[0];
     }
 
@@ -252,10 +290,6 @@ public class State implements Cloneable {
     public boolean isBikeRenting() {
         return stateData.usingRentedBike;
     }
-    
-    public boolean isFloatingBike() {
-        return stateData.isFloatingBike;
-    }
 
     public boolean isCarParked() {
         return stateData.carParked;
@@ -266,69 +300,32 @@ public class State implements Cloneable {
     }
 
     /**
-     * Returns the last street edge traversed by scanning the backEdge of the state chain backward.
-     * @param state a State
-     */
-    private StreetEdge getLastSeenStreetEdge(State state) {
-        if (state == null) {
-            return null;
-        }
-        if (state.backEdge instanceof StreetEdge) {
-            return (StreetEdge) state.backEdge;
-        }
-        return getLastSeenStreetEdge(state.backState);
-    }
-
-   /**
-    * Returns true if:
-    *    - There is no region defined for at least one of the currently taken bikes,
-    *      or
-    *    - The backEdge is inside the rental bike service area (backEdge.networks contains at least one of the
-    *      currently taken bikes)
-    */
-    public boolean isFloatingBikeDropOffAllowed() {
-        if (stateData.currentlyRentedBikes == null) {
-            LOG.warn("'isFloatingBikeDropOffAllowed()' is called while 'currentlyRentedBikes' is null.");
-            return false;
-        }
-/*
-        // Find which street edge is the one we are at
-        StreetEdge theEdge = getLastSeenStreetEdge(this);
-        if (theEdge == null) {
-            LOG.warn("isFloatingBikeDropOffAllowed(): Could not find the last seen StreetEdge.");
-            return false;
-        }
-
-        BikeRentalStationService bikeService = getContext().graph.getService(BikeRentalStationService.class);
-        for (String network : stateData.currentlyRentedBikes) {
-            boolean hasRegionDefined = bikeService.getBikeRentalRegions().get(network) != null;
-            if (!hasRegionDefined || theEdge.containsBikeNetwork(network)) {
-                return true;
-            }
-        }
-        return false;*/
-
-        return true;
-    }
-
-    /**
      * @return True if the state at vertex can be the end of path.
      */
     public boolean isFinal() {
         // When drive-to-transit is enabled, we need to check whether the car has been parked (or whether it has been picked up in reverse).
         boolean parkAndRide = stateData.opt.parkAndRide || stateData.opt.kissAndRide;
         boolean bikeParkAndRide = stateData.opt.bikeParkAndRide;
-        boolean bikeRentingOk = !isBikeRenting() || (isFloatingBike() && isFloatingBikeDropOffAllowed());
+        boolean bikeRentingOk = false;
         boolean bikeParkAndRideOk = false;
         boolean carParkAndRideOk = false;
+        boolean vehicleRentingOk;
         if (stateData.opt.arriveBy) {
+            bikeRentingOk = !isBikeRenting();
             bikeParkAndRideOk = !bikeParkAndRide || !isBikeParked();
             carParkAndRideOk = !parkAndRide || !isCarParked();
+            // If a vehicle is being rented and the search is progressing backward, the search must
+            // reach a vehicle rental station that this vehicle could have been picked up at
+            vehicleRentingOk = !isVehicleRenting();
         } else {
+            bikeRentingOk = !isBikeRenting();
             bikeParkAndRideOk = !bikeParkAndRide || isBikeParked();
             carParkAndRideOk = !parkAndRide || isCarParked();
+            // if still renting a vehicle, check if it is possible to dropoff a rental vehicle at the last
+            // seen edge
+            vehicleRentingOk = !isVehicleRenting() || isVehicleRentalDropoffAllowed(false);
         }
-        return bikeRentingOk && bikeParkAndRideOk && carParkAndRideOk;
+        return bikeRentingOk && bikeParkAndRideOk && carParkAndRideOk && vehicleRentingOk;
     }
 
     public Stop getPreviousStop() {
@@ -387,6 +384,13 @@ public class State implements Cloneable {
 
     public double getWeightDelta() {
         return this.weight - backState.weight;
+    }
+
+    public double getVehicleRentalDistanceDelta() {
+        if (backState != null)
+            return Math.abs(this.vehicleRentalDistance - backState.vehicleRentalDistance);
+        else
+            return 0;
     }
 
     public void checkNegativeWeight() {
@@ -522,9 +526,9 @@ public class State implements Cloneable {
         newState.stateData.initialWaitTime = stateData.initialWaitTime;
         // TODO Check if those two lines are needed:
         newState.stateData.usingRentedBike = stateData.usingRentedBike;
-        newState.stateData.isFloatingBike = stateData.isFloatingBike;
         newState.stateData.carParked = stateData.carParked;
         newState.stateData.bikeParked = stateData.bikeParked;
+        newState.stateData.usingRentedVehicle = stateData.usingRentedVehicle;
         return newState;
     }
 
@@ -683,12 +687,8 @@ public class State implements Cloneable {
         return stateData.serviceDay;
     }
 
-    public Set<String> getCurrentlyRentedBikes() {
-        return stateData.currentlyRentedBikes;
-    }
-
-    public String getVehicleRentalType() {
-        return stateData.rentalType;
+    public Set<String> getBikeRentalNetworks() {
+        return stateData.bikeRentalNetworks;
     }
 
     /**
@@ -766,23 +766,35 @@ public class State implements Cloneable {
                 editor.incrementWeight(orig.getWeightDelta());
                 editor.incrementWalkDistance(orig.getWalkDistanceDelta());
                 editor.incrementPreTransitTime(orig.getPreTransitTimeDelta());
-                
+                editor.incrementVehicleRentalDistance(orig.getVehicleRentalDistanceDelta());
+
                 // propagate the modes through to the reversed edge
                 editor.setBackMode(orig.getBackMode());
 
-                if (orig.isBikeRenting() && !orig.getBackState().isBikeRenting()) {
+                State origBackState = orig.getBackState();
+
+                if (orig.isBikeRenting() && !origBackState.isBikeRenting()) {
                     editor.doneVehicleRenting();
-                } else if (!orig.isBikeRenting() && orig.getBackState().isBikeRenting() &&
-                        orig.vertex instanceof BikeRentalStationVertex) {
+                } else if (!orig.isBikeRenting() && origBackState.isBikeRenting() &&
+                    orig.vertex instanceof BikeRentalStationVertex) {
                     // The orig.vertex can be TransitStop, hence the type checking.
-                    editor.beginVehicleRenting(
-                        ((BikeRentalStationVertex) orig.vertex).getVehicleMode(),
-                        orig.getBackState().isFloatingBike());
+                    editor.beginVehicleRenting(((BikeRentalStationVertex)orig.vertex).getVehicleMode());
                 }
-                if (orig.isCarParked() != orig.getBackState().isCarParked())
+                if (orig.isVehicleRenting() && !origBackState.isVehicleRenting()) {
+                    editor.endVehicleRenting();
+                } else if (!orig.isVehicleRenting() && origBackState.isVehicleRenting()) {
+                    editor.beginVehicleRenting(
+                        orig.vehicleRentalDistance,
+                        orig.getVehicleRentalNetworks(),
+                        orig.stateData.rentedVehicleAllowsFloatingDropoffs
+                    );
+                }
+                if (orig.isCarParked() != origBackState.isCarParked())
                     editor.setCarParked(!orig.isCarParked());
-                if (orig.isBikeParked() != orig.getBackState().isBikeParked())
+                if (orig.isBikeParked() != origBackState.isBikeParked())
                     editor.setBikeParked(!orig.isBikeParked());
+                if (orig.isVehicleRenting() != origBackState.isVehicleRenting())
+                    editor.setVehicleRenting(!orig.isVehicleRenting());
 
                 editor.setNumBoardings(getNumBoardings() - orig.getNumBoardings());
 
@@ -895,4 +907,197 @@ public class State implements Cloneable {
         return stateData.enteredNoThroughTrafficArea;
     }
 
+    /**
+     * Search from a vertex until a StreetEdge is found.
+     */
+    private StreetEdge getFirstSeenStreetEdge(Vertex vertex) {
+        Collection<Edge> curEdges = getOptions().arriveBy ? vertex.getIncoming() : vertex.getOutgoing();
+        Set<Vertex> seenVertices = new HashSet<>();
+        seenVertices.add(vertex);
+        int maxBreadth = 5;
+        int curBreadth = 1;
+        while (curEdges.size() > 0 && curBreadth < maxBreadth) {
+            List<Edge> nextEdges = new ArrayList<>();
+            for (Edge edge : curEdges) {
+                if (edge instanceof StreetEdge) {
+                    return (StreetEdge) edge;
+                }
+                Vertex nextVertex = getOptions().arriveBy ? edge.getFromVertex() : edge.getToVertex();
+                if (seenVertices.contains(nextVertex)) {
+                    continue;
+                }
+                nextEdges.addAll(getOptions().arriveBy ? nextVertex.getIncoming() : nextVertex.getOutgoing());
+                seenVertices.add(nextVertex);
+            }
+            curEdges = nextEdges;
+            curBreadth++;
+        }
+        throw new IllegalStateException("Too many rounds of searching for a StreetEdge encountered");
+    }
+
+    /**
+     * Returns the last street edge traversed by scanning the backEdge of the state chain backward.
+     * @param state a State
+     */
+    private StreetEdge getLastSeenStreetEdge(State state) {
+        if (state == null) {
+            return null;
+        }
+        if (state.backEdge instanceof StreetEdge) {
+            return (StreetEdge) state.backEdge;
+        }
+        return getLastSeenStreetEdge(state.backState);
+    }
+
+    /**
+     * Helper method for checking if a vehicle rental dropoff is possible at the last seen StreetEdge.
+     * If the droppingOffAtDesignatedDropoffArea is true, then the last seen StreetEdge is
+     * irrelevant.
+     */
+    public boolean isVehicleRentalDropoffAllowed(boolean droppingOffAtDesignatedDropoffArea) {
+        return isVehicleRentalDropoffAllowed(
+            droppingOffAtDesignatedDropoffArea ? null : getLastSeenStreetEdge(this),
+            droppingOffAtDesignatedDropoffArea
+        );
+    }
+
+    /**
+     * Check if the current search state would allow for the dropoff of a rental vehicle.  If in "arrive
+     * by" mode, the search is proceeding backwards and might reach a potential spot where a rental
+     * vehicle could be dropped off.  In "depart at" searches, this is checking if the rental vehicle
+     * currently being rented could be dropped off at this point.
+     *
+     * @param theEdge  The StreetEdge that the rental vehicle could be dropped off at.
+     * @param droppingOffAtDesignatedDropoffArea  Whether the vehicle is being dropped off at a
+     *                                            designated vehicle rental dropoff area.
+     * @return
+     */
+    public boolean isVehicleRentalDropoffAllowed(
+        StreetEdge theEdge,
+        boolean droppingOffAtDesignatedDropoffArea
+    ) {
+        RoutingRequest options = this.stateData.opt;
+
+        // To rent a vehicle, we need to have vehicle rental allowed in request.
+        if (!options.allowVehicleRental)
+            return false;
+
+        if (options.arriveBy) {
+            // the search is progressing backwards, so this is the point where a vehicle rental would "begin" by
+            // entering into a vehicle rental state.
+
+            // make sure a vehicle is not currently being rented.
+            if (this.isVehicleRenting()) {
+                // Forbid using more than 1 rental vehicle at once.
+                return false;
+            }
+
+            if (isEverBoarded()) {
+                // make sure a vehicle hasn't already been rented after transit
+                if (stateData.hasRentedVehiclePostTransit()) {
+                    // a vehicle has already been rented after taking transit, vehicle rental not possible anymore
+                    return false;
+                }
+            } else {
+                // make sure a vehicle hasn't already been rented before transit
+                if (stateData.hasRentedVehiclePreTransit()) {
+                    // a vehicle has already been rented before transit, don't begin renting another one until we take
+                    // transit
+                    return false;
+                }
+            }
+        } else {
+            // make sure a vehicle is currently being rented.
+            if (!this.isVehicleRenting()) {
+                // Can't dropoff a vehicle that isn't being rented
+                return false;
+            }
+        }
+
+        // If not searching backwards, make sure travel distance in vehicle is greater than minimum distance
+        if (
+            !options.arriveBy &&
+                this.vehicleRentalDistance < this.stateData.opt.minimumVehicleRentalDistance
+        ) {
+            // vehicle hasn't been ridden far enough
+            return false;
+        }
+
+        // if the vehicle is being dropped off at a designated dropoff area such as a docking station that might have
+        //  parking spaces. No further state checks are needed, so return true.
+        if (droppingOffAtDesignatedDropoffArea) {
+            return true;
+        }
+
+        // At this point, the vehicle could be dropped off on some kind of StreetEdge unless the StreetEdge forbids it.
+        // First, a sanity check is needed to  make sure we're actually working with an edge here.
+        if (theEdge == null) {
+            return false;
+        }
+
+        // check if the street edge has some characteristic that would not be suitable for leaving the vehicle at
+        if (!theEdge.getFloatingVehicleDropoffSuitability()) {
+            // Floating vehicles cannot be dropped off at the edge.
+            return false;
+        }
+
+        if (options.allowVehicleRentalDropoffAnywhere) {
+            // User has specified in routing request they intend to keep the vehicle even if dropping off outside a
+            // vehicle rental region.
+            return true;
+        }
+
+        // make sure the vehicle networks associated with the edge make a floating dropoff possible.
+        if (options.arriveBy) {
+            // the search is progressing backwards to the origin an a floating vehicle dropoff might have occurred at
+            // this StreetEdge. Make sure there is at least one possible vehicle network that allows floating dropoffs
+            // at this StreetEdge.
+            return theEdge.getVehicleNetworks() != null && theEdge.getVehicleNetworks().size() > 0;
+        } else {
+            // if the vehicle is not being dropped off at a designated area for dropping off vehicle rentals
+            // and the user wants to do a dropoff inside the vehicle rental region, make sure that the
+            // vehicle that was rented allows floating dropoffs
+            if (!stateData.rentedVehicleAllowsFloatingDropoffs) {
+                // rented vehicle must be dropped off at a vehicle rental station
+                return false;
+            }
+
+            // Check if the floating vehicle is within a compatible vehicle rental region
+            VehicleRentalStationService vehicleService = getContext().graph.getService(
+                VehicleRentalStationService.class
+            );
+            for (String network : stateData.vehicleRentalNetworks) {
+                boolean hasRegionDefined = vehicleService.getVehicleRentalRegions().get(network) != null;
+                if (!hasRegionDefined || theEdge.containsVehicleNetwork(network)) {
+                    return true;
+                }
+            }
+
+            // The rented vehicle's networks and the edge's networks don't have any compatibility, so a dropoff is not
+            // possible here.
+            return false;
+        }
+    }
+
+    public boolean isVehicleRenting() { return stateData.usingRentedVehicle; }
+
+    public Set<String> getVehicleRentalNetworks() { return stateData.vehicleRentalNetworks; }
+
+    public void beginVehicleRenting(
+        double initialEdgeDistance,
+        Set<String> networks,
+        boolean rentedVehicleAllowsFloatingDropoffs
+    ) {
+        stateData.usingRentedVehicle = true;
+        stateData.nonTransitMode = TraverseMode.MICROMOBILITY;
+        stateData.backMode = backState != null ? backState.getNonTransitMode() : null;
+        stateData.vehicleRentalNetworks = networks;
+        stateData.rentedVehicleAllowsFloatingDropoffs = rentedVehicleAllowsFloatingDropoffs;
+        if (isEverBoarded()) {
+            stateData.hasRentedVehiclePostTransit = true;
+        } else {
+            stateData.hasRentedVehiclePreTransit = true;
+        }
+        vehicleRentalDistance = initialEdgeDistance;
+    }
 }

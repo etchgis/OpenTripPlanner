@@ -131,8 +131,6 @@ public class ConstantsForTests {
 
             new StreetLinkerModule().buildGraph(g, new HashMap<>());
 
-            g.index(new DefaultStreetVertexIndexFactory());
-
             return g;
         } catch(Exception ex) {
             ex.printStackTrace();

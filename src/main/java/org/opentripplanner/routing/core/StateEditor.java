@@ -249,6 +249,11 @@ public class StateEditor {
         setEverBoarded(true);
     }
 
+    public void incrementVehicleRentalDistance(double distance) {
+        cloneStateDataAsNeeded();
+        child.vehicleRentalDistance += distance;
+    }
+
     /* Basic Setters */
 
     public void setTripTimes(TripTimes tripTimes) {
@@ -349,17 +354,15 @@ public class StateEditor {
         child.stateData.everBoarded = true;
     }
 
-    public void beginVehicleRenting(TraverseMode vehicleMode, boolean isFloatingBike) {
+    public void beginVehicleRenting(TraverseMode vehicleMode) {
         cloneStateDataAsNeeded();
         child.stateData.usingRentedBike = true;
-        child.stateData.isFloatingBike = isFloatingBike;
         child.stateData.nonTransitMode = vehicleMode;
     }
 
     public void doneVehicleRenting() {
         cloneStateDataAsNeeded();
         child.stateData.usingRentedBike = false;
-        child.stateData.isFloatingBike = false;
         child.stateData.nonTransitMode = TraverseMode.WALK;
     }
 
@@ -424,7 +427,7 @@ public class StateEditor {
         child.stateData.zone = state.stateData.zone;
         child.stateData.extensions = state.stateData.extensions;
         child.stateData.usingRentedBike = state.stateData.usingRentedBike;
-        child.stateData.isFloatingBike = state.stateData.isFloatingBike;
+        child.stateData.usingRentedVehicle = state.stateData.usingRentedVehicle;
         child.stateData.carParked = state.stateData.carParked;
         child.stateData.bikeParked = state.stateData.bikeParked;
     }
@@ -435,7 +438,7 @@ public class StateEditor {
         child.stateData.carParked = state.isCarParked();
         child.stateData.bikeParked = state.isBikeParked();
         child.stateData.usingRentedBike = state.isBikeRenting();
-        child.stateData.isFloatingBike = state.isFloatingBike();
+        child.stateData.usingRentedVehicle = state.isVehicleRenting();
     }
 
     /* PUBLIC GETTER METHODS */
@@ -544,16 +547,40 @@ public class StateEditor {
 
     public void setBikeRentalNetwork(Set<String> networks) {
         cloneStateDataAsNeeded();
-        child.stateData.currentlyRentedBikes = networks;
-    }
-
-    public void setRentalType(String vehicleType) {
-        cloneStateDataAsNeeded();
-        child.stateData.rentalType = vehicleType;
+        child.stateData.bikeRentalNetworks = networks;
     }
 
     public boolean hasEnteredNoThroughTrafficArea() {
         return child.hasEnteredNoThruTrafficArea();
     }
 
+    public void endVehicleRenting() {
+        cloneStateDataAsNeeded();
+        child.stateData.usingRentedVehicle = false;
+        child.stateData.nonTransitMode = TraverseMode.WALK;
+    }
+
+    public void beginVehicleRenting(
+        double initialEdgeDistance,
+        Set<String> networks,
+        boolean rentedVehicleAllowsFloatingDropoffs
+    ) {
+        cloneStateDataAsNeeded();
+        child.beginVehicleRenting(initialEdgeDistance, networks, rentedVehicleAllowsFloatingDropoffs);
+    }
+
+    public void setVehicleRenting(boolean vehicleRenting) {
+        cloneStateDataAsNeeded();
+        child.stateData.usingRentedVehicle = vehicleRenting;
+        if (vehicleRenting) {
+            child.stateData.nonTransitMode = TraverseMode.MICROMOBILITY;
+        } else {
+            child.stateData.nonTransitMode = TraverseMode.WALK;
+        }
+    }
+
+    public void addRentedVehicle(String vehicleId) {
+        cloneStateDataAsNeeded();
+        child.stateData.rentedVehicles.add(vehicleId);
+    }
 }

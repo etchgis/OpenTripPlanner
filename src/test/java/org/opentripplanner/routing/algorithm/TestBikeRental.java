@@ -69,8 +69,8 @@ public class TestBikeRental extends TestCase {
         new StreetBikeRentalLink(stationVertex, v2);
         new StreetBikeRentalLink(v2, stationVertex);
         Set<String> networks = new HashSet<String>(Arrays.asList("default"));
-        new RentABikeOnEdge(stationVertex, stationVertex, networks, "bike");
-        new RentABikeOffEdge(stationVertex, stationVertex, networks, "bike");
+        new RentABikeOnEdge(stationVertex, stationVertex, networks);
+        new RentABikeOffEdge(stationVertex, stationVertex, networks);
 
         // but we can't get off the bike at v3, so we still fail
         options = new RoutingRequest(new TraverseModeSet("WALK,BICYCLE,TRANSIT"));
@@ -92,8 +92,8 @@ public class TestBikeRental extends TestCase {
         BikeRentalStationVertex stationVertex2 = new BikeRentalStationVertex(graph, station2);
         new StreetBikeRentalLink(stationVertex2, v3);
         new StreetBikeRentalLink(v3, stationVertex2);
-        new RentABikeOnEdge(stationVertex2, stationVertex2, networks, "bike");
-        new RentABikeOffEdge(stationVertex2, stationVertex2, networks, "bike");
+        new RentABikeOnEdge(stationVertex2, stationVertex2, networks);
+        new RentABikeOffEdge(stationVertex2, stationVertex2, networks);
 
         // now we succeed!
         options = new RoutingRequest();
