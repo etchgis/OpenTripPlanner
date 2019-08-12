@@ -52,12 +52,13 @@ public interface StreetVertexIndexService {
      * @param endVertex: whether this is a start vertex (if it's false) or end vertex (if it's true)
      * @return
      */
-    public Vertex getVertexForLocation(GenericLocation place, RoutingRequest options,
-                                       boolean endVertex);
+    Vertex getVertexForLocation(GenericLocation place, RoutingRequest options, boolean endVertex);
 
-	/** Get a vertex at a given coordinate, using the same logic as in Samples. Used in Analyst
-	 * so that origins and destinations are linked the same way. */
-	public Vertex getSampleVertexAt(Coordinate coordinate, boolean dest);
+    /**
+     * Get a vertex at a given coordinate, using the same logic as in Samples. Used in Analyst
+     * so that origins and destinations are linked the same way.
+     */
+    Vertex getSampleVertexAt(Coordinate coordinate, boolean dest);
 
     /**
      * Getter method for StreetSplitter

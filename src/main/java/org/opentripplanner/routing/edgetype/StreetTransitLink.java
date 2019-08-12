@@ -14,7 +14,6 @@ import org.opentripplanner.routing.vertextype.TransitStop;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
 
-import java.util.HashSet;
 import java.util.Locale;
 
 /** 
@@ -70,14 +69,6 @@ public class StreetTransitLink extends Edge {
         return this.getName();
     }
 
-    /**
-      *
-      * @return true if the link connects a street vertex to a transit stop, false if it's the reverse (transit to street).
-      */
-    private boolean isEnteringTransit() {
-        return tov instanceof TransitStop;
-    }
-
     public State traverse(State s0) {
 
         // Forbid taking shortcuts composed of two street-transit links in a row. Also avoids spurious leg transitions.
@@ -103,23 +94,33 @@ public class StreetTransitLink extends Edge {
             // Forbid taking your own bike in the station if bike P+R activated.
             return null;
         }
+        if (s0.isBikeRenting()) {
+            // Forbid taking a rented bike on any transit.
+            // TODO Check this condition, does this always make sense?
+            return null;
+        }
 
         // Do not check here whether any transit modes are selected. A check for the presence of
         // transit modes will instead be done in the following PreBoard edge.
         // This allows searching for nearby transit stops using walk-only options.
         StateEditor s1 = s0.edit(this);
 
-        // Check if there is a rental bike and if it can be dropped off.
-        // Forbid a rental bike on any transit.
-        if (isEnteringTransit() && s0.isBikeRenting()) {
-            if (s0.isFloatingBike() && s0.isFloatingBikeDropOffAllowed()) {
-                // Drop off the bike here
-                s1.setBikeParked(true);
-                s1.doneVehicleRenting();
-                s1.setBikeRentalNetwork(new HashSet<>());
-                s1.setRentalType(null);
-            } else {
+        if (req.allowVehicleRental && s0.isVehicleRenting()) {
+            // check to see if transit may be used after transitioning out of a vehicle rental
+            if (req.arriveBy) {
+                // the search backwards has yet to reach a rental vehicle. This implementation does not allow brining a
+                // rented vehicle on transit. Therefore the search must continue so a rental vehicle can be found to
+                // pickup.
                 return null;
+            } else {
+                if (s0.isVehicleRentalDropoffAllowed(false)) {
+                    // floating rental vehicle dropoff allowed.  Exit the vehicle and get onto transit.
+                    s1.endVehicleRenting();
+                    s1.incrementWeight(req.vehicleRentalDropoffCost);
+                    s1.incrementTimeInSeconds(req.vehicleRentalDropoffTime);
+                } else {
+                    return null;
+                }
             }
         }
 

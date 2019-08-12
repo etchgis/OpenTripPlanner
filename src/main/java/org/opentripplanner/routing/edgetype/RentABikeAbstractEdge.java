@@ -26,12 +26,10 @@ public abstract class RentABikeAbstractEdge extends Edge {
     private static final long serialVersionUID = 1L;
 
     private Set<String> networks;
-    private String vehicleType;
 
-    public RentABikeAbstractEdge(Vertex from, Vertex to, Set<String> networks, String vehicleType) {
+    public RentABikeAbstractEdge(Vertex from, Vertex to, Set<String> networks) {
         super(from, to);
         this.networks = networks;
-        this.vehicleType = vehicleType;
     }
 
     protected State traverseRent(State s0) {
@@ -53,36 +51,11 @@ public abstract class RentABikeAbstractEdge extends Edge {
             return null;
         }
 
-        // Check if specific bike networks are requested or banned.
-        // TODO: handle casing
-        if (options.whiteListedProviders != null &&
-            !options.whiteListedProviders.isEmpty() &&
-            Sets.intersection(vertex.networks, options.whiteListedProviders).isEmpty()) {
-            return null;
-        }
-        if (options.bannedProviders != null &&
-            !options.bannedProviders.isEmpty() &&
-            Sets.difference(vertex.networks, options.bannedProviders).isEmpty()) {
-            return null;
-        }
-
-        if (options.whiteListedVehicles != null &&
-            !options.whiteListedVehicles.isEmpty() &&
-            !options.whiteListedVehicles.contains(vertex.getVehicleType())) {
-            return null;
-        }
-        if (options.bannedVehicles != null &&
-            !options.bannedVehicles.isEmpty() &&
-            options.bannedVehicles.contains(vertex.getVehicleType())) {
-            return null;
-        }
-
         StateEditor s1 = s0.edit(this);
         s1.incrementWeight(options.arriveBy ? options.bikeRentalDropoffCost : options.bikeRentalPickupCost);
         s1.incrementTimeInSeconds(options.arriveBy ? options.bikeRentalDropoffTime : options.bikeRentalPickupTime);
-        s1.beginVehicleRenting(((BikeRentalStationVertex)fromv).getVehicleMode(), vertex.isFloatingBike);
+        s1.beginVehicleRenting(((BikeRentalStationVertex)fromv).getVehicleMode());
         s1.setBikeRentalNetwork(networks);
-        s1.setRentalType(vehicleType);
         s1.setBackMode(s0.getNonTransitMode());
         State s1b = s1.makeState();
         return s1b;
@@ -93,7 +66,7 @@ public abstract class RentABikeAbstractEdge extends Edge {
         /*
          * To dropoff a bike, we need to have rented one.
          */
-        if (!s0.isBikeRenting() || !hasCompatibleNetworks(networks, s0.getCurrentlyRentedBikes()))
+        if (!s0.isBikeRenting() || !hasCompatibleNetworks(networks, s0.getBikeRentalNetworks()))
             return null;
         BikeRentalStationVertex pickup = (BikeRentalStationVertex) tov;
         if (options.useBikeRentalAvailabilityInformation && pickup.getSpacesAvailable() == 0) {

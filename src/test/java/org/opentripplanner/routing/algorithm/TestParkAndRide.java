@@ -46,7 +46,7 @@ import org.opentripplanner.util.NonLocalizedString;
 
         @SuppressWarnings("unused")
         Edge walkAndBike = new StreetEdge(B, C, GeometryUtils.makeLineString(0.001, 45, 0.002,
-                45), "BC street", 87, StreetTraversalPermission.PEDESTRIAN_AND_BICYCLE, false);
+                45), "BC street", 87, StreetTraversalPermission.PEDESTRIAN_AND_BICYCLE_AND_MICROMOBILITY, false);
 
         @SuppressWarnings("unused")
         Edge walkOnly = new StreetEdge(C, D, GeometryUtils.makeLineString(0.002, 45, 0.003,

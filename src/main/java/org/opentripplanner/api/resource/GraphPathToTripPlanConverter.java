@@ -3,7 +3,6 @@ package org.opentripplanner.api.resource;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineString;
-import org.opentripplanner.api.model.BoardAlightType;
 import org.opentripplanner.api.model.Itinerary;
 import org.opentripplanner.api.model.Leg;
 import org.opentripplanner.api.model.Place;
@@ -11,6 +10,7 @@ import org.opentripplanner.api.model.RelativeDirection;
 import org.opentripplanner.api.model.TripPlan;
 import org.opentripplanner.api.model.VertexType;
 import org.opentripplanner.api.model.WalkStep;
+import org.opentripplanner.api.model.BoardAlightType;
 import org.opentripplanner.common.geometry.DirectionUtils;
 import org.opentripplanner.common.geometry.GeometryUtils;
 import org.opentripplanner.common.geometry.PackedCoordinateSequence;
@@ -30,7 +30,9 @@ import org.opentripplanner.routing.core.StateEditor;
 import org.opentripplanner.routing.core.TraverseMode;
 import org.opentripplanner.routing.edgetype.AreaEdge;
 import org.opentripplanner.routing.edgetype.ElevatorAlightEdge;
+import org.opentripplanner.routing.edgetype.ElevatorBoardEdge;
 import org.opentripplanner.routing.edgetype.FreeEdge;
+import org.opentripplanner.routing.edgetype.HopEdge;
 import org.opentripplanner.routing.edgetype.OnboardEdge;
 import org.opentripplanner.routing.edgetype.PathwayEdge;
 import org.opentripplanner.routing.edgetype.PatternEdge;
@@ -56,6 +58,7 @@ import org.opentripplanner.routing.vertextype.ExitVertex;
 import org.opentripplanner.routing.vertextype.OnboardDepartVertex;
 import org.opentripplanner.routing.vertextype.StreetVertex;
 import org.opentripplanner.routing.vertextype.TransitVertex;
+import org.opentripplanner.routing.vertextype.VehicleRentalStationVertex;
 import org.opentripplanner.util.PolylineEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -384,11 +387,12 @@ public abstract class GraphPathToTripPlanConverter {
         addFrequencyFields(states, leg);
 
         leg.rentedBike = states[0].isBikeRenting() && states[states.length - 1].isBikeRenting();
-        if (leg.rentedBike) {
-            Set<String> networks = states[0].getCurrentlyRentedBikes();
+
+        leg.rentedVehicle = states[0].isVehicleRenting() && states[states.length - 1].isVehicleRenting();
+        if (leg.rentedVehicle) {
+            Set<String> networks = states[0].getVehicleRentalNetworks();
             if (networks != null && !networks.isEmpty())
                 leg.providerId = ((String)networks.toArray()[0]).toLowerCase();
-            leg.vehicleType = states[0].getVehicleRentalType();
         }
 
         // check at start or end because either could be the very beginning or end of the trip
@@ -778,6 +782,8 @@ public abstract class GraphPathToTripPlanConverter {
 
         if (endOfLeg) edge = state.getBackEdge();
 
+        // Add vertex type information to the place. For example, a transit stop gets stop attributes attached and bike
+        // share (or other vehicle rental types) will get information about the vehicle ID and networks served.
         if (vertex instanceof TransitVertex && edge instanceof OnboardEdge) {
             place.stopId = stop.getId();
             place.stopCode = stop.getCode();
@@ -808,9 +814,13 @@ public abstract class GraphPathToTripPlanConverter {
         } else if(vertex instanceof BikeRentalStationVertex) {
             place.bikeShareId = ((BikeRentalStationVertex) vertex).getId();
             LOG.trace("Added bike share Id {} to place", place.bikeShareId);
+            place.networks = ((BikeRentalStationVertex) vertex).getNetworks();
             place.vertexType = VertexType.BIKESHARE;
         } else if (vertex instanceof BikeParkVertex) {
             place.vertexType = VertexType.BIKEPARK;
+        } else if (vertex instanceof VehicleRentalStationVertex) {
+            place.networks = ((VehicleRentalStationVertex) vertex).getNetworks();
+            place.vertexType = VertexType.VEHICLERENTAL;
         } else {
             place.vertexType = VertexType.NORMAL;
         }

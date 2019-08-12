@@ -85,10 +85,12 @@ public class PlannerResource extends RoutingResource {
             }
         }
 
-        /* Populate up the elevation metadata */
-        response.elevationMetadata = new ElevationMetadata();
-        response.elevationMetadata.ellipsoidToGeoidDifference = router.graph.ellipsoidToGeoidDifference;
-        response.elevationMetadata.geoidElevation = request.geoidElevation;
+        /* Populate up the elevation metadata, only if no error occurred */
+        if (response.getError() == null) {
+            response.elevationMetadata = new ElevationMetadata();
+            response.elevationMetadata.ellipsoidToGeoidDifference = router.graph.ellipsoidToGeoidDifference;
+            response.elevationMetadata.geoidElevation = request.geoidElevation;
+        }
 
         /* Log this request if such logging is enabled. */
         if (request != null && router != null && router.requestLogger != null) {

@@ -1,7 +1,7 @@
 package org.opentripplanner.routing.core;
 
 import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.Set;
 
 import org.opentripplanner.model.FeedScopedId;
@@ -39,7 +39,12 @@ public class StateData implements Cloneable {
 
     protected boolean usingRentedBike;
 
-    protected boolean isFloatingBike;
+    protected boolean usingRentedVehicle;
+
+    protected boolean hasRentedVehiclePostTransit = false;
+    protected boolean hasRentedVehiclePreTransit = false;
+
+    public boolean rentedVehicleAllowsFloatingDropoffs;
 
     protected boolean usingHailedCar;
 
@@ -49,7 +54,7 @@ public class StateData implements Cloneable {
     protected boolean carParked;
 
     protected boolean bikeParked;
-    
+
     protected Stop previousStop;
 
     protected long lastAlightedTime;
@@ -89,9 +94,15 @@ public class StateData implements Cloneable {
 
     protected boolean backWalkingBike;
 
-    public Set<String> currentlyRentedBikes;
+    public Set<String> bikeRentalNetworks;
 
-    public String rentalType;
+    // A list of possible vehicle rental networks that the state can be associated with. This data structure is a set
+    // because in an arrive-by search, the search progresses backwards from a street edge where potentially multiple
+    // vehicle rental providers allow floating drop-offs at the edge.
+    public Set<String> vehicleRentalNetworks;
+
+    // The ids of vehicles that have been rented so far
+    protected Set<String> rentedVehicles = new HashSet<>();
 
     /* This boolean is set to true upon transition from a normal street to a no-through-traffic street. */
     protected boolean enteredNoThroughTrafficArea;
@@ -104,6 +115,8 @@ public class StateData implements Cloneable {
             nonTransitMode = TraverseMode.WALK;
         else if (modes.getBicycle())
             nonTransitMode = TraverseMode.BICYCLE;
+        else if (modes.getMicromobility())
+            nonTransitMode = TraverseMode.MICROMOBILITY;
         else
             nonTransitMode = null;
     }
@@ -124,4 +137,11 @@ public class StateData implements Cloneable {
 
     public boolean hasHailedCarPreTransit() { return hasHailedCarPreTransit; }
 
+    public Set<String> getRentedVehicles() { return rentedVehicles; }
+
+    public boolean hasRentedVehiclePostTransit() { return hasRentedVehiclePostTransit; }
+
+    public boolean hasRentedVehiclePreTransit() { return hasRentedVehiclePreTransit; }
+
+    public boolean rentedVehicleAllowsFloatingDropoffs() { return rentedVehicleAllowsFloatingDropoffs; }
 }

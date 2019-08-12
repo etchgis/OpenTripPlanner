@@ -339,5 +339,18 @@ otp.config.modes = {
     //TRANSLATORS: Travel by: mode of transport (Used in selection in Travel
     //Options widgets)
     'TRANSIT,WALK,BICYCLE_RENT': _tr('Transit & Rented Bicycle'),
-    "CAR_HAIL,WALK,TRANSIT"     : _tr('TNC &amp; Transit')
+    "CAR_HAIL,WALK,TRANSIT"     : _tr('TNC &amp; Transit'),
+    //TRANSLATORS: Travel by: mode of transport (Used in selection in Travel
+    //Options widgets)
+    "MICROMOBILITY"             : _tr('Micromobility'),
+    //TRANSLATORS: Travel by: mode of transport (Used in selection in Travel
+    //Options widgets)
+    "MICROMOBILITY,TRANSIT"     : _tr("Micromobility &amp; Transit"),
+    //TRANSLATORS: Travel by: mode of transport (Used in selection in Travel
+    //Options widgets)
+    'MICROMOBILITY_RENT'        : _tr('Rented Micromobility'),
+    //TRANSLATORS: Travel by: mode of transport (Used in selection in Travel
+    //Options widgets)
+    // Micromobility rentals will automatically have the walk mode added in the backend.
+    "MICROMOBILITY_RENT,TRANSIT": _tr('Rented Micromobility & Transit')
     };

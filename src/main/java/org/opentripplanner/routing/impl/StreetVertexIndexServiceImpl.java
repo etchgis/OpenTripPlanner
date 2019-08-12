@@ -1,24 +1,9 @@
-/* This program is free software: you can redistribute it and/or
-modify it under the terms of the GNU Lesser General Public License
-as published by the Free Software Foundation, either version 3 of
-the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>. */
-
 package org.opentripplanner.routing.impl;
 
 
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.LineString;
-import org.locationtech.jts.index.SpatialIndex;
-import org.locationtech.jts.index.strtree.STRtree;
 import org.opentripplanner.analyst.core.Sample;
 import org.opentripplanner.analyst.request.SampleFactory;
 import org.opentripplanner.common.geometry.GeometryUtils;
@@ -26,10 +11,14 @@ import org.opentripplanner.common.geometry.HashGridSpatialIndex;
 import org.opentripplanner.common.geometry.SphericalDistanceLibrary;
 import org.opentripplanner.common.model.GenericLocation;
 import org.opentripplanner.common.model.P2;
-import org.opentripplanner.graph_builder.linking.SimpleStreetSplitter;
 import org.opentripplanner.graph_builder.linking.StreetSplitter;
 import org.opentripplanner.routing.core.RoutingRequest;
-import org.opentripplanner.routing.edgetype.*;
+import org.opentripplanner.routing.edgetype.PatternEdge;
+import org.opentripplanner.routing.edgetype.SampleEdge;
+import org.opentripplanner.routing.edgetype.SimpleTransfer;
+import org.opentripplanner.routing.edgetype.StreetEdge;
+import org.opentripplanner.routing.edgetype.TemporaryFreeEdge;
+import org.opentripplanner.routing.edgetype.TemporaryPartialStreetEdge;
 import org.opentripplanner.routing.graph.Edge;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.graph.Vertex;
@@ -43,7 +32,10 @@ import org.opentripplanner.util.I18NString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * Indexes all edges and transit vertices of the graph spatially. Has a variety of query methods
@@ -60,9 +52,9 @@ public class StreetVertexIndexServiceImpl implements StreetVertexIndexService {
     /**
      * Contains only instances of {@link StreetEdge}
      */
-    private SpatialIndex edgeTree;
-    private SpatialIndex transitStopTree;
-    private SpatialIndex verticesTree;
+    private HashGridSpatialIndex edgeTree;
+    private HashGridSpatialIndex transitStopTree;
+    private HashGridSpatialIndex verticesTree;
 
     // private static final double SEARCH_RADIUS_M = 100; // meters
     // private static final double SEARCH_RADIUS_DEG = DistanceLibrary.metersToDegrees(SEARCH_RADIUS_M);
@@ -83,33 +75,15 @@ public class StreetVertexIndexServiceImpl implements StreetVertexIndexService {
 
     static final Logger LOG = LoggerFactory.getLogger(StreetVertexIndexServiceImpl.class);
 
-    private SimpleStreetSplitter simpleStreetSplitter;
+    private StreetSplitter streetSplitter;
 
     public StreetVertexIndexServiceImpl(Graph graph) {
-        this(graph, true);
-    }
-
-    public StreetVertexIndexServiceImpl(Graph graph, boolean hashGrid) {
         this.graph = graph;
-        if (hashGrid) {
-            edgeTree = new HashGridSpatialIndex<>();
-            transitStopTree = new HashGridSpatialIndex<>();
-            verticesTree = new HashGridSpatialIndex<>();
-        } else {
-            edgeTree = new STRtree();
-            transitStopTree = new STRtree();
-            verticesTree = new STRtree();
-        }
+        edgeTree = new HashGridSpatialIndex<>();
+        transitStopTree = new HashGridSpatialIndex<>();
+        verticesTree = new HashGridSpatialIndex<>();
         postSetup();
-        if (!hashGrid) {
-            ((STRtree) edgeTree).build();
-            ((STRtree) transitStopTree).build();
-            simpleStreetSplitter = new SimpleStreetSplitter(this.graph, null, null);
-        } else {
-            simpleStreetSplitter = new SimpleStreetSplitter(this.graph,
-                (HashGridSpatialIndex<Edge>) edgeTree, transitStopTree);
-        }
-
+        streetSplitter = new StreetSplitter(graph, edgeTree, transitStopTree);
     }
 
     /**
@@ -218,18 +192,17 @@ public class StreetVertexIndexServiceImpl implements StreetVertexIndexService {
              * If one need to store transit edges in the index, we could improve the hash grid
              * rasterizing splitting long segments.
              */
-            for (Edge e : gv.getOutgoing()) {
-                if (e instanceof PatternEdge || e instanceof SimpleTransfer)
-                    continue;
-                LineString geometry = e.getGeometry();
-                if (geometry == null) {
-                    continue;
+            synchronized (this) {
+                // place a lock here in order to ensure writes are thread-safe to the edgeTree
+                for (Edge e : gv.getOutgoing()) {
+                    if (e instanceof PatternEdge || e instanceof SimpleTransfer)
+                        continue;
+                    LineString geometry = e.getGeometry();
+                    if (geometry == null) {
+                        continue;
+                    }
+                    edgeTree.insert(geometry, e);
                 }
-                Envelope env = geometry.getEnvelopeInternal();
-                if (edgeTree instanceof HashGridSpatialIndex)
-                    ((HashGridSpatialIndex)edgeTree).insert(geometry, e);
-                else
-                    edgeTree.insert(env, e);
             }
             if (v instanceof TransitStop) {
                 Envelope env = new Envelope(v.getCoordinate());
@@ -330,7 +303,7 @@ public class StreetVertexIndexServiceImpl implements StreetVertexIndexService {
                                        boolean endVertex) {
         Coordinate c = loc.getCoordinate();
         if (c != null) {
-            return simpleStreetSplitter.linkOriginDestination(loc, options, endVertex);
+            return streetSplitter.linkOriginDestination(loc, options, endVertex);
         }
 
         // No Coordinate available.
@@ -383,6 +356,6 @@ public class StreetVertexIndexServiceImpl implements StreetVertexIndexService {
 
     @Override
     public StreetSplitter getStreetSplitter() {
-        return simpleStreetSplitter;
+        return streetSplitter;
     }
 }

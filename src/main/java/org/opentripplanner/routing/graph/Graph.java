@@ -297,6 +297,10 @@ public class Graph implements Serializable {
         return vertices.get(label);
     }
 
+    public boolean containsVertexLabel(String label) {
+        return vertices.containsKey(label);
+    }
+
     /**
      * Returns the vertex with the given ID or null if none is present.
      *
@@ -682,6 +686,11 @@ public class Graph implements Serializable {
      * TODO: do we really need a factory for different street vertex indexes?
      */
     public void index (StreetVertexIndexFactory indexFactory) {
+        if (streetIndex != null) {
+            throw new UnsupportedOperationException(
+                "A streetIndex has already been defined. Can't you just reuse the existing one?"
+            );
+        }
         streetIndex = indexFactory.newIndex(this);
         LOG.debug("street index built.");
         LOG.debug("Rebuilding edge and vertex indices.");

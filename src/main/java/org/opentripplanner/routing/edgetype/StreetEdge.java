@@ -19,9 +19,11 @@ import org.opentripplanner.routing.core.TraverseModeSet;
 import org.opentripplanner.routing.graph.Edge;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.graph.Vertex;
+import org.opentripplanner.routing.util.ElevationUtils;
 import org.opentripplanner.routing.vertextype.BarrierVertex;
 import org.opentripplanner.routing.vertextype.IntersectionVertex;
 import org.opentripplanner.routing.vertextype.OsmVertex;
+import org.opentripplanner.routing.vertextype.SemiPermanentSplitterVertex;
 import org.opentripplanner.routing.vertextype.SplitterVertex;
 import org.opentripplanner.routing.vertextype.StreetVertex;
 import org.opentripplanner.routing.vertextype.TemporarySplitterVertex;
@@ -34,8 +36,10 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * This represents a street segment.
@@ -117,9 +121,12 @@ public class StreetEdge extends Edge implements Cloneable {
     private byte outAngle;
 
     /**
-     * A set of bike networks where this edge is located inside their service regions.
+     * A set of vehicle networks where this edge is located inside their service regions.
      */
-//    private Set<String> bikeNetworks;
+    private Set<String> vehicleNetworks;
+
+    // whether or not this street is a good place to dropoff a floating vehicle rental
+    private boolean suitableForFloatingVehicleRentalDropoff = true;
 
     // whether or not this street is a good place to board or alight a TNC vehicle
     private boolean suitableForTNCStop = true;
@@ -358,6 +365,113 @@ public class StreetEdge extends Edge implements Cloneable {
                     }
                 }
             }
+        } else if (options.allowVehicleRental) {
+            // possible transitions out of renting a Micromobility vehicle during "depart at" searches
+            if (
+                !options.arriveBy &&
+                    s0.isVehicleRenting() &&
+                    currMode == TraverseMode.MICROMOBILITY
+            ) {
+                // A StreetEdge has been encountered that
+                // 1. Does not allow Micromobility travel
+                // 2. Allows a floating vehicle dropoff under the following cirucmstances:
+                //    a. on the current edge
+                //    b. on the edge of the previous state (NOTE: the previous StreetEdge is considered because it can
+                //        be reasoned that the very last point of the previous StreetEdge constitutes a part of this
+                //        current StreetEdge. Since walking would begin on this StreetEdge, the floating rental vehicle
+                //        is assumed to be left at the very beginning of the StreetEdge.)
+                //
+                // In this case fork the state into 2 options:
+                // 1. End the vehicle rental and begin walking
+                // 2. Keep renting the vehicle, but transition to WALK mode
+                if (
+                    !getPermission().allows(TraverseMode.MICROMOBILITY) &&
+                        (
+                            s0.isVehicleRentalDropoffAllowed(this, false) ||
+                                (
+                                    s0.backEdge instanceof StreetEdge &&
+                                        s0.isVehicleRentalDropoffAllowed(
+                                            (StreetEdge) s0.backEdge,
+                                            false
+                                        )
+                                )
+                        )
+                ) {
+                    StateEditor editorEndedVehicleRental = doTraverse(s0, options, TraverseMode.WALK);
+                    StateEditor editorKeepVehicleRental = doTraverse(s0, options, TraverseMode.WALK);
+                    State keepVehicleRentalState = null;
+                    if (editorKeepVehicleRental != null) {
+                        editorKeepVehicleRental.setBackMode(TraverseMode.WALK);
+                        keepVehicleRentalState = editorKeepVehicleRental.makeState();
+                    }
+                    if (editorEndedVehicleRental != null) {
+                        editorEndedVehicleRental.endVehicleRenting(); // done with vehicle rental use for now
+                        editorEndedVehicleRental.incrementWeight(options.vehicleRentalDropoffCost);
+                        editorEndedVehicleRental.incrementTimeInSeconds(options.vehicleRentalDropoffTime);
+                        State endedVehicleRentalState = editorEndedVehicleRental.makeState();
+                        if (endedVehicleRentalState != null) {
+                            endedVehicleRentalState.addToExistingResultChain(keepVehicleRentalState);
+                            return endedVehicleRentalState;
+                        }
+                    }
+                    return keepVehicleRentalState;
+                }
+                // A StreetEdge has been ecountered where:
+                // 1. Micromobility vehicles are allowed to be ridden
+                // 2. Micromobility vehicles are not allowed to be dropped off at
+                // 3. The previous edge was a StreetEdge that did allow a floating vehicle dropoff
+                //
+                // In this case, return 2 states:
+                // 1. Still renting and riding the vehicle
+                // 2. Vehicle rental ended and walking on foot
+                else if (
+                    getPermission().allows(TraverseMode.MICROMOBILITY) &&
+                        !getFloatingVehicleDropoffSuitability() &&
+                        s0.backEdge instanceof StreetEdge &&
+                        s0.isVehicleRentalDropoffAllowed((StreetEdge) s0.backEdge, false)
+                ) {
+                    StateEditor editorEndedVehicleRental = doTraverse(s0, options, TraverseMode.WALK);
+                    if (editorEndedVehicleRental != null) {
+                        editorEndedVehicleRental.endVehicleRenting(); // done with vehicle rental use for now
+                        editorEndedVehicleRental.incrementWeight(options.vehicleRentalDropoffCost);
+                        editorEndedVehicleRental.incrementTimeInSeconds(options.vehicleRentalDropoffTime);
+                        State endedVehicleRentalState = editorEndedVehicleRental.makeState();
+                        if (endedVehicleRentalState != null) {
+                            endedVehicleRentalState.addToExistingResultChain(state);
+                            return endedVehicleRentalState;
+                        }
+                    }
+                    return state;
+                }
+            }
+            // possible backward transition of completing a dropping off of a floating vehicle when in "arrive by" mode
+            else if (
+                !s0.isVehicleRenting() &&
+                    getPermission().allows(TraverseMode.MICROMOBILITY) &&
+                    currMode != TraverseMode.MICROMOBILITY &&
+                    options.arriveBy &&
+                    s0.isVehicleRentalDropoffAllowed(this, false)
+            ) {
+                StateEditor editorWithVehicleRental = doTraverse(s0, options, TraverseMode.MICROMOBILITY);
+                if (editorWithVehicleRental != null) {
+                    // begin vehicle rental usage.
+                    editorWithVehicleRental.incrementWeight(options.vehicleRentalPickupCost);
+                    editorWithVehicleRental.incrementTimeInSeconds(options.vehicleRentalPickupTime);
+                    editorWithVehicleRental.beginVehicleRenting(getDistance(), vehicleNetworks, true);
+                    State editorWithVehicleRentalState = editorWithVehicleRental.makeState();
+                    if (state != null) {
+                        // make the forkState be of the non-vehicle-rental mode so it's possible to build walk steps
+                        if (editorWithVehicleRentalState != null) {
+                            state.addToExistingResultChain(editorWithVehicleRentalState);
+                        }
+                        return state;
+                    } else {
+                        // if the no-rented-vehicle state is non traversable or something, return just the
+                        // rented-vehicle state
+                        return editorWithVehicleRentalState;
+                    }
+                }
+            }
         }
         return state;
     }
@@ -386,7 +500,7 @@ public class StreetEdge extends Edge implements Cloneable {
 
         /* Check whether this street allows the current mode. If not and we are biking, attempt to walk the bike. */
         if (!canTraverse(options, traverseMode)) {
-            if (traverseMode == TraverseMode.BICYCLE) {
+            if (traverseMode == TraverseMode.BICYCLE || traverseMode == TraverseMode.MICROMOBILITY) {
                 //return doTraverse(s0, options.bikeWalkingOptions, TraverseMode.WALK);
             }
             else return null;
@@ -497,11 +611,38 @@ public class StreetEdge extends Edge implements Cloneable {
                     s0.getOptions().bikeWalkingOptions : s0.getOptions();
             double backSpeed = backPSE.calculateSpeed(backOptions, backMode, s0.getTimeInMillis());
             final double realTurnCost;  // Units are seconds.
+            boolean canRetryBannedTurnWithWalkTransition = traverseMode == TraverseMode.BICYCLE ||
+                traverseMode == TraverseMode.MICROMOBILITY;
 
             // Apply turn restrictions
             if (options.arriveBy && !canTurnOnto(backPSE, s0, backMode)) {
-                return null;
+                // A turn restriction exists that forbids this turn with the current traverseMode.
+                // If using a bike, or micromobility, try again while walking
+                if (canRetryBannedTurnWithWalkTransition) {
+                    return doTraverse(s0, options.bikeWalkingOptions, TraverseMode.WALK);
+                }
+                // After trying again with switching to walking, the backMode will not have changed. Therefore, an
+                // assumption is made that a transition from non-walking to walking occurs at the very end of the last
+                // state. In this case it might be possible to make said turn if an immediate transition to walking is
+                // assumed at the very end of the previous state.
+                else if (
+                    traverseMode == TraverseMode.WALK &&
+                        backMode != TraverseMode.WALK &&
+                        canTurnOnto(backPSE, s0, TraverseMode.WALK)
+                ) {
+                    // the turn is now possible with the assumption that a transition to walking occurred at the very
+                    // end of the last StreetEdge of the back state.
+                    // Do nothing here in order to continue the traversal and avoid marking the edge as non-traversable
+                    // by returning null.
+                } else {
+                    return null;
+                }
             } else if (!options.arriveBy && !backPSE.canTurnOnto(this, s0, traverseMode)) {
+                // A turn restriction exists that forbids this turn with the current traverseMode.
+                // If using a bike, or micromobility, try again while walking
+                if (canRetryBannedTurnWithWalkTransition) {
+                    return doTraverse(s0, options.bikeWalkingOptions, TraverseMode.WALK);
+                }
                 return null;
             }
 
@@ -555,8 +696,9 @@ public class StreetEdge extends Edge implements Cloneable {
         }
         
 
-        if (walkingBike || TraverseMode.BICYCLE.equals(traverseMode)) {
-            if (!(backWalkingBike || TraverseMode.BICYCLE.equals(backMode))) {
+        // add a cost for switching modes. This assumes that it's not possible to make Bicycle <> Micromobility switches
+        if (walkingBike || TraverseMode.BICYCLE.equals(traverseMode) || TraverseMode.MICROMOBILITY.equals(traverseMode)) {
+            if (!(backWalkingBike || TraverseMode.BICYCLE.equals(backMode) || TraverseMode.MICROMOBILITY.equals(backMode))) {
                 s1.incrementTimeInSeconds(options.bikeSwitchTime);
                 s1.incrementWeight(options.bikeSwitchCost);
             }
@@ -564,6 +706,9 @@ public class StreetEdge extends Edge implements Cloneable {
 
         if (!traverseMode.isDriving()) {
             s1.incrementWalkDistance(getDistance());
+            if (s0.isVehicleRenting()) {
+                s1.incrementVehicleRentalDistance(getDistance());
+            }
         }
 
         // On itineraries with car mode enabled, limit both walking and driving before transit,
@@ -584,6 +729,7 @@ public class StreetEdge extends Edge implements Cloneable {
                      s1.incrementPreTransitTime(roundedTime);
                  }
             } else {
+                // there is no differentiation in depart at queries
                 if (!s0.isEverBoarded()) s1.incrementPreTransitTime(roundedTime);
             }
             if (s1.isMaxPreTransitTimeExceeded(options)) {
@@ -655,8 +801,27 @@ public class StreetEdge extends Edge implements Cloneable {
         } else if (traverseMode.isDriving()) {
             // NOTE: Automobiles have variable speeds depending on the edge type
             return calculateCarSpeed(options);
+        } else if (traverseMode == TraverseMode.MICROMOBILITY) {
+            return Math.min(
+                calculateMicromobilitySpeed(
+                    options.watts,
+                    options.weight,
+                    Math.atan(0), // 0 slope beta
+                    getRollingResistanceCoefficient(),
+                    ElevationUtils.ZERO_ELEVATION_DRAG_RESISTIVE_FORCE_COMPONENT,
+                    options.minimumMicromobilitySpeed,
+                    options.maximumMicromobilitySpeed
+                ),
+                // Micromobility vehicles must also obey the car speed limit
+                carSpeed
+            );
         }
         return options.getSpeed(traverseMode);
+    }
+
+    // TODO: use some kind of lookup of roadway type to get this number (ie if gravel increase value)
+    public double getRollingResistanceCoefficient() {
+        return 0.005;
     }
 
     @Override
@@ -667,6 +832,156 @@ public class StreetEdge extends Edge implements Cloneable {
     @Override
     public double timeLowerBound(RoutingRequest options) {
         return this.getDistance() / options.getStreetSpeedUpperBound();
+    }
+
+    /**
+     * Calculate the approximate speed for a vehicle given slope data, available sustained power output, weight, rolling
+     * resistance, aerodynamic drag and bounds on min/max speeds.
+     *
+     * This calculation is made using a formula derived from the equations relating to determing total resistive force
+     * that is needed to be overcome to maintain a certain velocity. The website at
+     * http://www.kreuzotter.de/english/espeed.htm goes into great detail regarding this and presents the following
+     * equation which also appears on other websites such as https://www.gribble.org/cycling/power_v_speed.html.
+     *
+     * P = Cm * V * (Cd * A * ρ/2 * (V + W) ^ 2 + Frg + V * Crvn)
+     *
+     * where:
+     * P = power in watts
+     * Cm = Coefficient for power transmission losses and losses due to tire slippage
+     * V = velocity in m/s
+     * Cd = Coefficient of aerodynamic drag
+     * A = frontal area in m^2
+     * ρ = air density in kg/m^3
+     * W = wind speed in m/s (if positive this is a headwind, if negative this is a tailwind)
+     * Frg = Rolling friction (normalized on inclined plane) plus slope pulling force on inclined plane
+     * Crvn = The coefficient for the dynamic rolling resistance, normalized to road inclination.
+     *
+     * This equation is then rearranged in an attempt to solve for V on their website as the following:
+     *
+     * V^3 + V^2 * 2 * (W + Crvn / (Cd * A * ρ)) + V * (W^2 + (2 * Frg) / (Cd * A * ρ)) - (2 * P) / (Cm * Cd * A * ρ) = 0
+     *
+     * Then, using the cardanic formulae, the following solutions are found:
+     *
+     * a = (W^3 - Crvn^3) / 27 - (W * (5 * W * Crvn + (8 * Crvn^2) / (Cd * A * ρ) - 6 * Frg)) / (9 * Cd * A * ρ) + (2 * Frg * Crvn) / (3 * (Cd * A * ρ)^2) + P / (Cm * Cd * A * ρ)
+     * b = (2 / (9 * Cd * A * ρ)) * (3 * Frg - 4 * W * Crvn - (W^2) * Cd * A * ρ/2 - (2 * Crvn) / (Cd * A * ρ))
+     *
+     * If a^2 + b^3 ≥ 0:
+     * V = cbrt(a + sqrt(a^2 + b^3)) + cbrt(a - sqrt(a^2 + b^3)) - (2 / 3) * (W + Crvn / (Cd * A * ρ))
+     *
+     * If a^2 + b^3 < 0:
+     * V = 2 * sqrt(-b) * cos((1 / 3) * arccos(a / sqrt(-b^3)) - (2 / 3) * (W + Crvn / (Cd * A * ρ))
+     *
+     * Although it could be possible to try to estimate wind speed using weather data, for now wind speed is assumed to
+     * be 0. Therefore, the above equations can be changed to exlude the parts where the wind speed being 0 would cause
+     * various components to no longer be needed. Thus these solutions are used:
+     *
+     * a = (- Crvn^3) / 27 + (2 * Frg * Crvn) / (3 * (Cd * A * ρ)^2) + P / (Cm * Cd * A * ρ)
+     * b = (2 / (9 * Cd * A * ρ)) * (3 * Frg - (2 * Crvn) / (Cd * A * ρ))
+     *
+     * If a^2 + b^3 ≥ 0:
+     * V = cbrt(a + sqrt(a^2 + b^3)) + cbrt(a - sqrt(a^2 + b^3)) - (2 / 3) * (Crvn / (Cd * A * ρ))
+     *
+     * If a^2 + b^3 < 0:
+     * V = 2 * sqrt(-b) * cos((1 / 3) * arccos(a / sqrt(-b^3)) - (2 / 3) * (Crvn / (Cd * A * ρ))
+     *
+     * @param watts The sustained power output in watts. This represents the value of `P` in the above equations.
+     * @param weight The total weight required to be moved that includes the rider(s), their belongings and the vehicle
+     *               weight.
+     * @param beta ("beta") Inclination angle, = arctan(grade/100). It's probably not a huge time savings and would use
+     *              more memory, but additional precalculations from this value could be made. This value is used to
+     *              calculate the values of `Crvn` and `Frg` as noted in the above equations.
+     * @param coefficientOfRollingResistance The coefficient of rolling resistance. This can also be used to model the
+     *              difficulty of traveling over bumpy roadways. This value is used to calculate the value of `Frg` as
+     *              noted in the above equations.See this wikipedia page for a list of coefficients by various surface
+     *              types: https://en.wikipedia.org/wiki/Rolling_resistance#Rolling_resistance_coefficient_examples
+     * @param aerodynamicDragComponent The product of the coefficient of aerodynamic drag, frontal area and air density.
+     *              This value is product of (Cd * A * ρ) as noted in the above mathematical equations.
+     * @param minSpeed The minimum speed that the micromobility should travel at in cases where the slope is so steep
+     *              that it would be faster to walk with the vehicle.
+     * @param maxSpeed The maximum speed the vehicle can travel at.
+     * @return The speed in m/s. This represents the value of `V` in the above mathematical equations.
+     */
+    public static double calculateMicromobilitySpeed(
+        double watts,
+        double weight,
+        double beta,
+        double coefficientOfRollingResistance,
+        double aerodynamicDragComponent,
+        double minSpeed,
+        double maxSpeed
+    ) {
+        // assume that end-users will not account for drivetrain inefficencies and will use the default power rating of
+        // the vehicle. This adjusts the power downward  to account for drivetrain inefficencies. An assumption is also
+        // made that due to use in an urban environment the user may not always be traveling with the maximum available
+        // sustained power due to traffic, personal perference, etc
+        //
+        // FIXME: this current implementation assumes that the maximum sustained power is always used. In reality, the
+        //  actual wattage outputted likely depends on the desired speed the user wants to travel at and whether the
+        //  vehicle (and person if human-power assist is possible) can output enough power to overcome the resistive
+        //  forces needed to travel at that desired speed. For example, on steep downhills, the power output could
+        //  actually be negative (ie the user is braking the vehicle). And on the flats, the maximum power output of
+        //  some vehicles likely isn't necessary to maintain the desired speed. For now this maxSpeed acts as a good cap
+        //  on speeds, but perhaps some more advanced calculation of the actual power could be done. And in turn the
+        //  actual power could be used to determine how much fuel has been burned in the vehicle.
+        watts = watts * 0.8;
+
+        // The coefficient for the dynamic rolling resistance, normalized to road inclination.
+        // In the above mathematical equations, this is the value of `Crvn`.
+        // This value could be precalculated during graph build.
+        double dynamicRollingResistance = ElevationUtils.getDynamicRollingResistance(beta);
+
+        // Rolling friction (normalized on inclined plane) plus slope pulling force on inclined plane
+        // In the above mathematical equations, this is the value of `Frg`.
+        double normalizedRollingFriction = ElevationUtils.GRAVITATIONAL_ACCELERATION_CONSTANT *
+            weight *
+            // These cosine and sine calculations could be precalculated during graph build
+            (coefficientOfRollingResistance * Math.cos(beta) + Math.sin(beta));
+
+        double a = (
+            -Math.pow(dynamicRollingResistance, 3) / 27.0
+        ) + (
+            (2.0 * normalizedRollingFriction * dynamicRollingResistance) /
+                (3.0 * Math.pow(aerodynamicDragComponent, 2))
+        ) + (
+            watts / aerodynamicDragComponent
+        );
+        double b = (
+            2.0 / (9.0 * aerodynamicDragComponent)
+        ) * (
+            3.0 * normalizedRollingFriction -
+                (
+                    (2.0 * dynamicRollingResistance) / aerodynamicDragComponent
+                )
+        );
+
+        double cardanicCheck = Math.pow(a, 2) + Math.pow(b, 3);
+        double rollingDragComponent = 2.0 / 3.0 * dynamicRollingResistance / aerodynamicDragComponent;
+        double speed;
+        if (cardanicCheck >= 0) {
+            double cardanicCheckSqrt = Math.sqrt(cardanicCheck);
+            speed = Math.cbrt(a + cardanicCheckSqrt) +
+                Math.cbrt(a - cardanicCheckSqrt) -
+                rollingDragComponent;
+        } else {
+            speed = 2.0 *
+                Math.sqrt(-b) *
+                Math.cos(1.0 / 3.0 * Math.acos(a / Math.sqrt(Math.pow(-b, 3)))) -
+                rollingDragComponent;
+        }
+
+        // on steep uphills, the calculated velocity could be slower than the minimum speed. Use the minimum speed in
+        // that case.
+        speed = Math.max(
+            // on steep downhills, the calculated velocity can easily be faster than the max vehicle speed, so cap the
+            // speed at the given maximum speed
+            Math.min(
+                speed,
+                maxSpeed
+            ),
+            minSpeed
+        );
+
+        return speed;
     }
 
     public double getSlopeSpeedEffectiveLength() {
@@ -852,6 +1167,16 @@ public class StreetEdge extends Edge implements Cloneable {
 
     public boolean getTNCStopSuitability() { return suitableForTNCStop; }
 
+    public void setVehicleNetworks(Set<String> networks) { vehicleNetworks = networks; }
+
+    public Set<String> getVehicleNetworks() { return vehicleNetworks; }
+
+    public void setFloatingVehicleDropoffSuitability(boolean isSuitable) {
+        this.suitableForFloatingVehicleRentalDropoff = isSuitable;
+    }
+
+    public boolean getFloatingVehicleDropoffSuitability() { return suitableForFloatingVehicleRentalDropoff; }
+
 	public boolean isSlopeOverride() {
 	    return BitSetUtils.get(flags, SLOPEOVERRIDE_FLAG_INDEX);
 	}
@@ -890,8 +1215,29 @@ public class StreetEdge extends Edge implements Cloneable {
         length_mm = (int) (accumulatedMeters * 1000);
     }
 
-    /** Split this street edge and return the resulting street edges */
-    public P2<StreetEdge> split(SplitterVertex v, boolean destructive) {
+    /**
+     * Split this street edge and return the resulting street edges.  There are 3 possible types of splits:
+     * 1. A destructive split where two new StreetEdges are created from the existing edge. The edge that was split
+     *      has its reference removed from its from and to vertices in the StreetSplitter class thus permanently
+     *      removing the possibility of the original edge being traversed in subsequent searches. This split method
+     *      should only be used when building a graph. Another important note is that in destructive splits, regular
+     *      StreetEdges are created without elevation data, but typically these destructive splits occur in graph
+     *      build modules that occur before adding in elevation data.
+     * 2. A semi-permanent split is typically used in an updater to create vertices and edges that are specifically for
+     *      a single rental car/bike/vehicle station. Further splits of semi-permanent edges are only allowed for
+     *      linking the origin and destination for the graph. See {@link SemiPermanentPartialStreetEdge.split}. The
+     *      original edge is still traversable in the graph.
+     * 3. A temporary split is used to link a StreetEdge to an origin or destination. In this case there is only a need
+     *      for creating outgoing edges from the origin and incoming edges to the destination.
+     *      // TODO: there is also something about half edges which may not be needed anymore?
+     *
+     * @param splitterVertex The new vertex that the newly split edge(s) will become connected to.
+     * @param destructive Whether or not the split should be permanent and result in the old edge no longer existing
+     *                    within the graph.
+     * @param createSemiPermanentEdges Whether or not the split should result in the creation of semi-permanent edges
+     *                                 or temporary edges.
+     */
+    public P2<StreetEdge> split(SplitterVertex v, boolean destructive, boolean createSemiPermanentEdges) {
         P2<LineString> geoms = GeometryUtils.splitGeometryAtPoint(getGeometry(), v.getCoordinate());
 
         StreetEdge e1 = null;
@@ -943,26 +1289,93 @@ public class StreetEdge extends Edge implements Cloneable {
                 e2.fromv.removeOutgoing(e2);
                 throw new IllegalStateException("Split street is longer than original street!");
             }
-
-            for (StreetEdge e : new StreetEdge[] { e1, e2 }) {
-                e.setBicycleSafetyFactor(getBicycleSafetyFactor());
-                e.setHasBogusName(hasBogusName());
-                e.setStairs(isStairs());
-                e.setWheelchairAccessible(isWheelchairAccessible());
-                e.setBack(isBack());
-            }
         } else {
-            if (((TemporarySplitterVertex) v).isEndVertex()) {
-                e1 = new TemporaryPartialStreetEdge(this, (StreetVertex) fromv, v, geoms.first, name);
-                e1.setNoThruTraffic(this.isNoThruTraffic());
-                e1.setStreetClass(this.getStreetClass());
+            if (createSemiPermanentEdges) {
+                e1 = new SemiPermanentPartialStreetEdge(this, (StreetVertex) fromv, v, geoms.first, name);
+                e2 = new SemiPermanentPartialStreetEdge(this, v, (StreetVertex) tov, geoms.second, name);
             } else {
-                e2 = new TemporaryPartialStreetEdge(this, v, (StreetVertex) tov, geoms.second, name);
-                e2.setNoThruTraffic(this.isNoThruTraffic());
-                e2.setStreetClass(this.getStreetClass());
+                boolean splitAtEndVertex = ((TemporarySplitterVertex) v).isEndVertex();
+                // The StreetVertex of the edge to be split that won't be used when creating a TemporaryPartialStreetEdge
+                StreetVertex ununsedExistingStreetVertex = (StreetVertex) (splitAtEndVertex ? tov : fromv);
+                if (
+                    this instanceof SemiPermanentPartialStreetEdge &&
+                        ununsedExistingStreetVertex instanceof SemiPermanentSplitterVertex
+                ) {
+                    // There is no need to split a SemiPermanentPartialStreetEdge when the splitter vertex is a
+                    // SemiPermanentSplitterVertex. The original edge that the SemiPermanentPartialStreetEdge was split
+                    // from will also be split and we'd end up with basically 2 identical TemporaryPartialStreetEdges.
+                    //
+                    // This situation will arise in the following context:
+                    //
+                    // Given the following graph...
+                    //
+                    // B =====(1)==== A
+                    // \\           // \
+                    //   =(3)=D=(4)=   (2)
+                    //      ||||        \
+                    //       (5)         C
+                    //      ||||
+                    //        E<(6)>
+                    //
+                    // Vertices:
+                    // A = StreetVertex A
+                    // B = StreetVertex B
+                    // C = StreetVertex C
+                    // D = SemiPermanentSplitterVertices D1 and D2. There will be two of these, one for the split
+                    //      between edge A->B and another for the split between edge B->A
+                    // E = BikeRentalStationVertex E
+                    //
+                    // Edges:
+                    // 1 = StreetEdges A->B and B->A
+                    // 2 = StreetEdge A->C
+                    // 3 = SemiPermanentPartialStreetEdges (B->D1 and D2->B) (split from A->B and B->A)
+                    // 4 = SemiPermanentPartialStreetEdges (A->D2 and D1->A) (split from A->B and B->A)
+                    // 5 = StreetBikeRentalLinks (
+                    //          SemiPermanentSplitterVertex D1&2 -> BikeRentalStationVertex E
+                    //          and
+                    //          BikeRentalStationVertex E -> SemiPermanentSplitterVertex D1&2
+                    //     )
+                    // 6 = RentABikeOnEdge (E -> E)
+                    //
+                    // ... assume a request is made to split between vertices B and A at a position that is also between
+                    // vertices B and D. The splitting logic will find that the following edges could be split: B->A,
+                    // A->B, B->D1 and D2->B. Since B->D1 and D2->B are edges that were already split from B->A and A->B
+                    // respectively, the split from B->D1 would be identical to the proposed split from B->A. Therefore,
+                    // to avoid creating unneeded edges, the creation of this edge is avoided.
+                    LOG.debug("Skipping creation of duplicate TemporaryPartialStreetEdge");
+                } else {
+                    if (splitAtEndVertex) {
+                        e1 = new TemporaryPartialStreetEdge(this, (StreetVertex) fromv, v, geoms.first, name, 0);
+                    } else {
+                        e2 = new TemporaryPartialStreetEdge(this, v, (StreetVertex) tov, geoms.second, name, 0);
+                    }
+                }
             }
         }
-        return new P2<>(e1, e2);
+
+        for (StreetEdge e : new StreetEdge[] { e1, e2 }) {
+            if (e == null) continue;
+            e.copyAttributes(this);
+        }
+
+        return new P2<StreetEdge>(e1, e2);
+    }
+
+    /**
+     * Copies over all attirubtes related to the street (not stuff like geometry and vertices and ids) from an other
+     * StreetEdge to this StreetEdge
+     */
+    private void copyAttributes(StreetEdge other) {
+        this.wayId = other.wayId;
+        this.setBicycleSafetyFactor(other.getBicycleSafetyFactor());
+        this.setHasBogusName(other.hasBogusName());
+        this.setStairs(other.isStairs());
+        this.setWheelchairAccessible(other.isWheelchairAccessible());
+        this.setCarSpeed(other.getCarSpeed());
+        this.setVehicleNetworks(other.getVehicleNetworks());
+        this.setFloatingVehicleDropoffSuitability(other.getFloatingVehicleDropoffSuitability());
+        this.setNoThruTraffic(other.isNoThruTraffic());
+        this.setStreetClass(other.getStreetClass());
     }
 
     /**
@@ -994,22 +1407,18 @@ public class StreetEdge extends Edge implements Cloneable {
         else
             return -1;
     }
-/*
-    public boolean addBikeNetwork(String bikeNetwork) {
-        if (bikeNetworks == null) {
-            synchronized (this) {
-                if (bikeNetworks == null) {
-                    bikeNetworks = new HashSet<>();
-                }
-            }
+
+    public boolean addVehicleNetwork(String vehicleNetwork) {
+        if (vehicleNetworks == null) {
+            vehicleNetworks = new HashSet<>();
         }
-        return bikeNetworks.add(bikeNetwork);
+        return vehicleNetworks.add(vehicleNetwork);
     }
 
-    public boolean containsBikeNetwork(String bikeNetwork) {
-        if (bikeNetworks == null){
+    public boolean containsVehicleNetwork(String vehicleNetwork) {
+        if (vehicleNetworks == null){
             return false;
         }
-        return bikeNetworks.contains(bikeNetwork);
-    }*/
+        return vehicleNetworks.contains(vehicleNetwork);
+    }
 }

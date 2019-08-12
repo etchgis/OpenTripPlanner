@@ -362,6 +362,10 @@ otp.modules.planner.PlannerModule =
             if(this.numItineraries) queryParams.numItineraries = this.numItineraries;
             if(this.minTransferTime) queryParams.minTransferTime = this.minTransferTime;
             if(this.showIntermediateStops) queryParams.showIntermediateStops = this.showIntermediateStops;
+            if(this.watts) queryParams.watts = this.watts;
+            if(this.weight) queryParams.weight = this.weight;
+            if(this.minimumMicromobilitySpeed) queryParams.minimumMicromobilitySpeed = this.minimumMicromobilitySpeed;
+            if(this.maximumMicromobilitySpeed) queryParams.maximumMicromobilitySpeed = this.maximumMicromobilitySpeed;
 
             queryParams.addTurnByTurn = false;
 
@@ -615,6 +619,7 @@ otp.modules.planner.PlannerModule =
         if(mode === "TRAM") return '#800';
         if(mode === "CAR") return '#444';
         if(mode === "AIRPLANE") return '#f0f';
+        if(mode === "MICROMOBILITY") return '#FCEF1B';
         return '#aaa';
     },
 

@@ -1,6 +1,7 @@
 package org.opentripplanner.api.model;
 
 import java.util.Calendar;
+import java.util.Set;
 
 import org.opentripplanner.model.FeedScopedId;
 import org.opentripplanner.util.Constants;
@@ -84,6 +85,12 @@ public class Place {
      * In case the vertex is of type Bike sharing station.
      */
     public String bikeShareId;
+
+    /**
+     * Car share station fields
+     */
+    @JsonSerialize
+    public Set<String> networks;
 
     /**
      * This is an optional field which can be used to distinguish among ways a passenger's
