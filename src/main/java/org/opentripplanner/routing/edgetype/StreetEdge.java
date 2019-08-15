@@ -269,7 +269,10 @@ public class StreetEdge extends Edge implements Cloneable {
         StateEditor editor = doTraverse(s0, options, s0.getNonTransitMode());
         State state = (editor == null) ? null : editor.makeState();
         /* Kiss and ride support. Mode transitions occur without the explicit loop edges used in park-and-ride. */
-        if (options.kissAndRide) {
+        // TEMP: The or for parkAndRide was added by Jon as a hackish way to allow direct driving, even though the
+        // destination is linked to a WALK-friendly edge when you select park and ride. Basically a P&R trip
+        // can be treated as a K&R as well.
+        if (options.kissAndRide || options.parkAndRide) {
             if (options.arriveBy) {
                 // Branch search to "unparked" CAR mode ASAP after transit has been used.
                 // Final WALK check prevents infinite recursion.
