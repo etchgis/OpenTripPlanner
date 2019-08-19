@@ -74,10 +74,17 @@ public class GenericGbfsService implements VehicleRentalDataSource, JsonConfigur
     @Override
     public void configure (Graph graph, JsonNode config) {
         String url = config.path("url").asText(); // path() returns MissingNode not null.
-        if (url == null) {
+        if (url.isEmpty()) {
             throw new IllegalArgumentException("Missing mandatory 'url' configuration.");
         }
         this.rootUrl = url;
+
+        String token = config.path("authToken").asText();
+        if (!token.isEmpty()) {
+            String bearer = "Bearer " + token;
+            headerName = "Authorization";
+            headerValue = bearer;
+        }
 
         this.networkName = config.path("network").asText();
         if (networkName == null || networkName.isEmpty()) {
