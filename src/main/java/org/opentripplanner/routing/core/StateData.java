@@ -104,6 +104,8 @@ public class StateData implements Cloneable {
     // The ids of vehicles that have been rented so far
     protected Set<String> rentedVehicles = new HashSet<>();
 
+    public VehicleType vehicleType;
+
     /* This boolean is set to true upon transition from a normal street to a no-through-traffic street. */
     protected boolean enteredNoThroughTrafficArea;
 

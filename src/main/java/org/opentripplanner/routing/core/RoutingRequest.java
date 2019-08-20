@@ -322,10 +322,10 @@ public class RoutingRequest implements Cloneable, Serializable {
     public HashSet<String> whiteListedProviders = new HashSet<String>();
 
     /** Do not use certain rental vehicle types */
-    public HashSet<String> bannedVehicles = new HashSet<String>();
+    public HashSet<VehicleType> bannedVehicles = new HashSet<VehicleType>();
 
     /** Only use certain rental vehicle types */
-    public HashSet<String> whiteListedVehicles = new HashSet<String>();
+    public HashSet<VehicleType> whiteListedVehicles = new HashSet<VehicleType>();
 
 
     /**
@@ -633,8 +633,6 @@ public class RoutingRequest implements Cloneable, Serializable {
     // user is planning a trip with a rental vehicle with the intent to keep the vehicle and bring it back to an
     // allowable dropoff point in a later trip. This does not override edge-specific restrictions.
     public boolean allowVehicleRentalDropoffAnywhere = false;
-
-    public String companies;
 
     /** Which path comparator to use */
     public String pathComparator = null;
@@ -1001,14 +999,18 @@ public class RoutingRequest implements Cloneable, Serializable {
     public void setBannedVehicles(String s) {
         if (!s.isEmpty()) {
             bannedVehicles = new HashSet<>();
-            Collections.addAll(bannedVehicles, s.toLowerCase().split(","));
+            String[] list = s.toLowerCase().split(",");
+            for (String type : list)
+                bannedVehicles.add(VehicleType.fromString(type));
         }
     }
 
     public void setWhiteListedVehicles(String s) {
         if (!s.isEmpty()) {
             whiteListedVehicles = new HashSet<>();
-            Collections.addAll(whiteListedVehicles, s.toLowerCase().split(","));
+            String[] list = s.toLowerCase().split(",");
+            for (String type : list)
+                whiteListedVehicles.add(VehicleType.fromString(type));
         }
     }
 
@@ -1173,6 +1175,7 @@ public class RoutingRequest implements Cloneable, Serializable {
         ret.setArriveBy(!ret.arriveBy);
         ret.reverseOptimizing = !ret.reverseOptimizing; // this is not strictly correct
         ret.useBikeRentalAvailabilityInformation = false;
+        ret.useVehicleRentalAvailabilityInformation = false;
         return ret;
     }
 

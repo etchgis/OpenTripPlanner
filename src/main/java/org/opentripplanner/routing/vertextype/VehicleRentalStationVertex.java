@@ -1,6 +1,7 @@
 package org.opentripplanner.routing.vertextype;
 
 import org.opentripplanner.common.MavenVersion;
+import org.opentripplanner.routing.core.VehicleType;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.graph.Vertex;
 import org.opentripplanner.routing.vehicle_rental.VehicleRentalStation;
@@ -30,6 +31,8 @@ public class VehicleRentalStationVertex extends RentalStationVertex {
 
     private Set<String> networks;
 
+    private VehicleType type;
+
     public VehicleRentalStationVertex(Graph g, VehicleRentalStation station) {
         //FIXME: raw_name can be null if vehicle station is made from graph updater
         super(g, "vehicle rental station " + station.id, station.x, station.y,
@@ -38,6 +41,7 @@ public class VehicleRentalStationVertex extends RentalStationVertex {
         this.setVehiclesAvailable(station.vehiclesAvailable);
         this.setSpacesAvailable(station.spacesAvailable);
         this.setNetworks(station.networks);
+        this.setType(station.type);
     }
 
     public int getVehiclesAvailable() {
@@ -63,6 +67,10 @@ public class VehicleRentalStationVertex extends RentalStationVertex {
     public Set<String> getNetworks() { return networks; }
 
     public void setNetworks(Set<String> networks) { this.networks = networks; }
+
+    public VehicleType getType() { return type; }
+
+    public void setType(VehicleType type) { this.type = type; }
 
     public String getId() {
         return id;

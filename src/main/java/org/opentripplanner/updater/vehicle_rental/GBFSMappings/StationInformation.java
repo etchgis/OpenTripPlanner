@@ -26,6 +26,7 @@ public class StationInformation extends BaseGtfsResponse {
         public String post_code;
         public Set<RentalMethod> rental_methods;
         public Integer capacity;
+        public String vehicle_type;
     }
 
 

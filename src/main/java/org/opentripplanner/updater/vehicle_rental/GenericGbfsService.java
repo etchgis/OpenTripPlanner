@@ -7,6 +7,7 @@ import com.google.common.collect.Sets;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.opentripplanner.analyst.UnsupportedGeometryException;
+import org.opentripplanner.routing.core.VehicleType;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.vehicle_rental.VehicleRentalRegion;
 import org.opentripplanner.routing.vehicle_rental.VehicleRentalStation;
@@ -40,6 +41,7 @@ public class GenericGbfsService implements VehicleRentalDataSource, JsonConfigur
     private String headerValue;
     private String language;
     private String networkName;
+    private VehicleType vehicleType = VehicleType.UNKNOWN;
     // whether or not this system has docks. If the feed does not have the required URLs/files about docks, errors will
     // be logged as a result
     private boolean hasDocks;
@@ -96,6 +98,13 @@ public class GenericGbfsService implements VehicleRentalDataSource, JsonConfigur
             this.networkName = "GBFS";
         }
         this.hasDocks = config.path("hasDocks").asBoolean();
+
+        String vehicleType = config.path("vehicleType").asText();
+        if (!vehicleType.isEmpty()) {
+            this.vehicleType = VehicleType.fromString(vehicleType);
+            LOG.info("All rented vehicles for {} will be treated as a {}.", networkName, this.vehicleType);
+        }
+
         setRegionsFromConfig(config);
     }
 
@@ -419,6 +428,8 @@ public class GenericGbfsService implements VehicleRentalDataSource, JsonConfigur
                 floatingVehicle.allowPickup = true;
                 floatingVehicle.isFloatingVehicle = true;
                 floatingVehicle.networks = Sets.newHashSet(networkName);
+                floatingVehicle.type = (bike.vehicle_type == null || bike.vehicle_type.isEmpty())
+                    ? this.vehicleType : VehicleType.fromString(bike.vehicle_type);
                 floatingVehicle.spacesAvailable = 0;
                 floatingVehicle.vehiclesAvailable = 1;
 
@@ -469,6 +480,8 @@ public class GenericGbfsService implements VehicleRentalDataSource, JsonConfigur
         vehicleRentalStation.isBorderDropoff = false;
         vehicleRentalStation.isFloatingVehicle = false;
         vehicleRentalStation.networks = Sets.newHashSet(networkName);
+        vehicleRentalStation.type = (station.vehicle_type == null || station.vehicle_type.isEmpty())
+        ? this.vehicleType : VehicleType.fromString(station.vehicle_type);
 
         return vehicleRentalStation;
     }

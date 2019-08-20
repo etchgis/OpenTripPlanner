@@ -4,6 +4,8 @@ import com.google.common.collect.Sets;
 import org.opentripplanner.routing.core.RoutingRequest;
 import org.opentripplanner.routing.core.State;
 import org.opentripplanner.routing.core.StateEditor;
+import org.opentripplanner.routing.core.TraverseMode;
+import org.opentripplanner.routing.core.VehicleType;
 import org.opentripplanner.routing.vehicle_rental.VehicleRentalStation;
 import org.opentripplanner.routing.vertextype.VehicleRentalStationVertex;
 
@@ -46,14 +48,24 @@ public class RentAVehicleOnEdge extends RentAVehicleAbstractEdge {
         }
 
         // make sure the vehicle being rented is within a network compatible with the request
-        if (
-            !hasCompatibleNetworks(
-                options.companies != null
-                    ? Sets.newHashSet(options.companies.split(","))
-                    : null,
-                station.networks
-            )
-        ) {
+        if (options.whiteListedProviders != null &&
+            !options.whiteListedProviders.isEmpty() &&
+            Sets.intersection(station.networks, options.whiteListedProviders).isEmpty()) {
+            return null;
+        }
+        if (options.bannedProviders != null &&
+            !options.bannedProviders.isEmpty() &&
+            Sets.difference(station.networks, options.bannedProviders).isEmpty()) {
+            return null;
+        }
+        if (options.whiteListedVehicles != null &&
+            !options.whiteListedVehicles.isEmpty() &&
+            !options.whiteListedVehicles.contains(station.type)) {
+            return null;
+        }
+        if (options.bannedVehicles != null &&
+            !options.bannedVehicles.isEmpty() &&
+            options.bannedVehicles.contains(station.type)) {
             return null;
         }
 
@@ -67,6 +79,9 @@ public class RentAVehicleOnEdge extends RentAVehicleAbstractEdge {
                 // not in a state where a vehicle is being rented, therefore a rental can't begin at this time
                 return null;
             }
+
+            if (s0.getVehicleType() != station.type && s0.getVehicleType() != VehicleType.UNKNOWN)
+                return null;
 
             // Check if the vehicle network at this edge is compatible with the allowable vehicle networks
             // where the vehicle was dropped off.  Dropoff points could be either a dropoff station or a
@@ -83,15 +98,15 @@ public class RentAVehicleOnEdge extends RentAVehicleAbstractEdge {
                 return null;
             }
 
-            // TODO: make sure the vehicle that is about to be rented has floating dropoff capabilities if it
-            //  was dropped off in a floating state. This depends on future changes where rental stations have
-            //  information about whether vehicles that are rented from the station would allow a floating dropoff.
-//            if (s0.stateData.rentedVehicleAllowsFloatingDropoffs() && !station.vehicleRentalsAllowFloatingDropoffs) {
-//                return null;
-//            }
+            // make sure the vehicle that is about to be rented has floating dropoff capabilities
+            if (s0.stateData.rentedVehicleAllowsFloatingDropoffs() && !station.isFloatingVehicle) {
+                return null;
+            }
 
             // looks like it's ok to have rented a vehicle from this station. Transition out of the vehicle rental state.
+            s1e.setVehicleType(station.type);   // TODO: is this okay to do? what about other states?
             s1e.endVehicleRenting();
+            s1e.setBackMode(s0.getNonTransitMode());
         } else {
             // make sure more than 1 vehicle isn't rented at once
             if (s0.isVehicleRenting()) {
@@ -113,7 +128,7 @@ public class RentAVehicleOnEdge extends RentAVehicleAbstractEdge {
             }
 
             // looks like it's ok to have begun renting a vehicle from this station
-            s1e.beginVehicleRenting(0, station.networks, station.isFloatingVehicle);
+            s1e.beginVehicleRenting(0, station.networks, station.type, station.isFloatingVehicle);
         }
 
         // if this point is reached, it is possible to proceed with a vehicle rental pickup from this station

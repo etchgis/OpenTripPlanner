@@ -92,7 +92,7 @@ public abstract class GraphUpdaterConfigurator {
                 else if (type.equals("winkki-polling-updater")) {
                     updater = new WinkkiPollingGraphUpdater();
                 }
-                else if (type.equals("vehicle-rental")) {
+                else if (type.equals("vehicle-rental-updater")) {
                     updater = new VehicleRentalUpdater();
                 }
             }

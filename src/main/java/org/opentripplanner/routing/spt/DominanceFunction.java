@@ -109,6 +109,14 @@ public abstract class DominanceFunction implements Serializable {
             return false;
         }
 
+        // In case of vehicle renting, different networks (ie incompatible vehicles) are not comparable
+        if (a.isVehicleRenting()) {
+            if (!Objects.equals(a.getVehicleRentalNetworks(), b.getVehicleRentalNetworks()))
+                return false;
+            if (a.getVehicleType() != b.getVehicleType())
+                return false;
+        }
+
         // Are the two states arriving at a vertex from two different directions where turn restrictions apply?
         if (a.backEdge != b.getBackEdge() && (a.backEdge instanceof StreetEdge)) {
             if (! a.getOptions().getRoutingContext().graph.getTurnRestrictions(a.backEdge).isEmpty()) {

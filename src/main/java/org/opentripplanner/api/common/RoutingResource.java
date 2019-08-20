@@ -429,12 +429,6 @@ public abstract class RoutingResource {
     @QueryParam("driveDistanceReluctance")
     protected Double driveDistanceReluctance;
 
-    /*
-     * A comma separated list of provider companies to use in the routing request
-     */
-    @QueryParam("companies")
-    protected String companies;
-
     /**
      * Set the method of sorting itineraries in the response. Right now, the only supported value is "duration";
      * otherwise it uses default sorting. More sorting methods may be added in the future.
@@ -771,8 +765,6 @@ public abstract class RoutingResource {
                 request.transportationNetworkCompanyEtaAtOrigin = earliestEta;
             }
         }
-
-        request.companies = companies;
 
         if (pathComparator != null)
             request.pathComparator = pathComparator;

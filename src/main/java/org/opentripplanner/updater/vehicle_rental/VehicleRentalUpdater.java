@@ -252,6 +252,7 @@ public class VehicleRentalUpdater extends PollingGraphUpdater {
 
                 if (coversFrom && coversTo) {
                     // all of edge is within region
+                    // TODO BY JON: track a set of possible vehicles, copy to state, and as state is processed remove candidates.
                     edge.addVehicleNetwork(region.network);
                 } else if (coversFrom || coversTo) {
                     // part of edge is within region

@@ -126,6 +126,8 @@ public class State implements Cloneable {
         // Transportation Network Companies enabled.
         this.time = timeSeconds * 1000;
         this.stateData.usingRentedBike = false;
+        this.stateData.usingRentedVehicle = false;
+        this.stateData.rentedVehicleAllowsFloatingDropoffs = false;
         /* If the itinerary is to begin with a car that is left for transit, the initial state of arriveBy searches is
            with the car already "parked" and in WALK mode. Otherwise, we are in CAR mode and "unparked". */
         if (options.parkAndRide || options.kissAndRide) {
@@ -149,7 +151,7 @@ public class State implements Cloneable {
         // Initialize the non-transit mode when a vehicle rental is possible.
         else if (options.allowVehicleRental) {
             if (options.arriveBy) {
-                // if searching with arriveBy mode, it is possible that the search ended with a rental car being dropped
+                // if searching with arriveBy mode, it is possible that the search ended with a rental vehicle being dropped
                 // off at the target. See if that could be possible.
                 StreetEdge firstStreetEdge = getFirstSeenStreetEdge(vertex);
                 if (
@@ -158,7 +160,7 @@ public class State implements Cloneable {
                 ) {
                     // looks like it is possible to have began renting a vehicle from the first seen street edge
                     // begin the search with a rented vehicle in use.
-                    beginVehicleRenting(0, firstStreetEdge.getVehicleNetworks(), true);
+                    beginVehicleRenting(0, firstStreetEdge.getVehicleNetworks(), VehicleType.UNKNOWN, true);
                 } else {
                     // not possible to have rented a car, start out in walk mode
                     stateData.nonTransitMode = TraverseMode.WALK;
@@ -216,7 +218,8 @@ public class State implements Cloneable {
 
     public String toString() {
         return "<State " + new Date(getTimeInMillis()) + " [" + weight + "] "
-                + (isBikeRenting() ? "BIKE_RENT " : "") + (isCarParked() ? "CAR_PARKED " : "")
+                + (isBikeRenting() ? "BIKE_RENT " : "") + (isVehicleRenting() ? "VEHICLE_RENT " : "")
+                + (isCarParked() ? "CAR_PARKED " : "")
                 + vertex + ">";
     }
     
@@ -560,6 +563,7 @@ public class State implements Cloneable {
         newState.stateData.bikeParked = stateData.bikeParked;
         newState.stateData.usingHailedCar = stateData.usingHailedCar;
         newState.stateData.usingRentedVehicle = stateData.usingRentedVehicle;
+        newState.stateData.rentedVehicleAllowsFloatingDropoffs = stateData.rentedVehicleAllowsFloatingDropoffs;
         return newState;
     }
 
@@ -722,6 +726,10 @@ public class State implements Cloneable {
         return stateData.bikeRentalNetworks;
     }
 
+    public VehicleType getVehicleType() {
+        return stateData.vehicleType;
+    }
+
     /**
      * Reverse the path implicit in the given state, re-traversing all edges in the opposite
      * direction so as to remove any unnecessary waiting in the resulting itinerary. This produces a
@@ -818,6 +826,7 @@ public class State implements Cloneable {
                     editor.beginVehicleRenting(
                         orig.vehicleRentalDistance,
                         orig.getVehicleRentalNetworks(),
+                        orig.getVehicleType(),
                         orig.stateData.rentedVehicleAllowsFloatingDropoffs
                     );
                 }
@@ -1171,19 +1180,29 @@ public class State implements Cloneable {
         }
     }
 
-    public boolean isVehicleRenting() { return stateData.usingRentedVehicle; }
+    public boolean isVehicleRenting() {
+        return stateData.usingRentedVehicle;
+    }
 
-    public Set<String> getVehicleRentalNetworks() { return stateData.vehicleRentalNetworks; }
+    public boolean isFloatingVehicle() {
+        return stateData.rentedVehicleAllowsFloatingDropoffs;
+    }
+
+    public Set<String> getVehicleRentalNetworks() {
+        return stateData.vehicleRentalNetworks;
+    }
 
     public void beginVehicleRenting(
         double initialEdgeDistance,
         Set<String> networks,
+        VehicleType type,
         boolean rentedVehicleAllowsFloatingDropoffs
     ) {
         stateData.usingRentedVehicle = true;
         stateData.nonTransitMode = TraverseMode.MICROMOBILITY;
         stateData.backMode = backState != null ? backState.getNonTransitMode() : null;
         stateData.vehicleRentalNetworks = networks;
+        stateData.vehicleType = type;
         stateData.rentedVehicleAllowsFloatingDropoffs = rentedVehicleAllowsFloatingDropoffs;
         if (isEverBoarded()) {
             stateData.hasRentedVehiclePostTransit = true;

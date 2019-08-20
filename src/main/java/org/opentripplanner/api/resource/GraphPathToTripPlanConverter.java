@@ -396,8 +396,7 @@ public abstract class GraphPathToTripPlanConverter {
             Set<String> networks = states[0].getVehicleRentalNetworks();
             if (networks != null && !networks.isEmpty())
                 leg.providerId = ((String)networks.toArray()[0]).toLowerCase();
-            //leg.vehicleType = states[0].getVehicleType().toString();
-            leg.vehicleType = "scooter";
+            leg.vehicleType = states[0].getVehicleType().toString();
         }
 
         // check at start or end because either could be the very beginning or end of the trip

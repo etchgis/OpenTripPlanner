@@ -16,6 +16,7 @@ import org.opentripplanner.routing.core.State;
 import org.opentripplanner.routing.core.StateEditor;
 import org.opentripplanner.routing.core.TraverseMode;
 import org.opentripplanner.routing.core.TraverseModeSet;
+import org.opentripplanner.routing.core.VehicleType;
 import org.opentripplanner.routing.graph.Edge;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.graph.Vertex;
@@ -460,7 +461,8 @@ public class StreetEdge extends Edge implements Cloneable {
                     // begin vehicle rental usage.
                     editorWithVehicleRental.incrementWeight(options.vehicleRentalPickupCost);
                     editorWithVehicleRental.incrementTimeInSeconds(options.vehicleRentalPickupTime);
-                    editorWithVehicleRental.beginVehicleRenting(getDistance(), vehicleNetworks, true);
+                    // TODO by Jon: track list of allowable types for edge, pass to state, then weed them out.
+                    editorWithVehicleRental.beginVehicleRenting(getDistance(), vehicleNetworks, VehicleType.UNKNOWN, true);
                     State editorWithVehicleRentalState = editorWithVehicleRental.makeState();
                     if (state != null) {
                         // make the forkState be of the non-vehicle-rental mode so it's possible to build walk steps

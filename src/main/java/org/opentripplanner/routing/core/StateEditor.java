@@ -433,6 +433,7 @@ public class StateEditor {
         child.stateData.extensions = state.stateData.extensions;
         child.stateData.usingRentedBike = state.stateData.usingRentedBike;
         child.stateData.usingRentedVehicle = state.stateData.usingRentedVehicle;
+        child.stateData.rentedVehicleAllowsFloatingDropoffs = state.stateData.rentedVehicleAllowsFloatingDropoffs;
         child.stateData.carParked = state.stateData.carParked;
         child.stateData.bikeParked = state.stateData.bikeParked;
     }
@@ -444,6 +445,7 @@ public class StateEditor {
         child.stateData.bikeParked = state.isBikeParked();
         child.stateData.usingRentedBike = state.isBikeRenting();
         child.stateData.usingRentedVehicle = state.isVehicleRenting();
+        child.stateData.rentedVehicleAllowsFloatingDropoffs = state.isFloatingVehicle();
     }
 
     /* PUBLIC GETTER METHODS */
@@ -562,16 +564,23 @@ public class StateEditor {
     public void endVehicleRenting() {
         cloneStateDataAsNeeded();
         child.stateData.usingRentedVehicle = false;
+        child.stateData.rentedVehicleAllowsFloatingDropoffs = false;
         child.stateData.nonTransitMode = TraverseMode.WALK;
     }
 
     public void beginVehicleRenting(
         double initialEdgeDistance,
         Set<String> networks,
+        VehicleType type,
         boolean rentedVehicleAllowsFloatingDropoffs
     ) {
         cloneStateDataAsNeeded();
-        child.beginVehicleRenting(initialEdgeDistance, networks, rentedVehicleAllowsFloatingDropoffs);
+        child.beginVehicleRenting(initialEdgeDistance, networks, type, rentedVehicleAllowsFloatingDropoffs);
+    }
+
+    public void setVehicleType(VehicleType vehicleType) {
+        cloneStateDataAsNeeded();
+        child.stateData.vehicleType = vehicleType;
     }
 
     public void alightHailedCar() {

@@ -2,10 +2,10 @@ package org.opentripplanner.routing.vehicle_rental;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+
+import org.opentripplanner.routing.core.VehicleType;
 import org.opentripplanner.util.ResourceBundleSingleton;
 
-import javax.xml.bind.annotation.XmlAttribute;
-import javax.xml.bind.annotation.XmlTransient;
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.Set;
@@ -26,11 +26,9 @@ import java.util.Set;
 public class VehicleRentalStation extends RentalStation implements Serializable, Cloneable {
     private static final long serialVersionUID = 8311460609708089384L;
 
-    @XmlAttribute
     @JsonSerialize
     public int vehiclesAvailable = Integer.MAX_VALUE;
 
-    @XmlAttribute
     @JsonSerialize
     public int spacesAvailable = Integer.MAX_VALUE;
 
@@ -38,16 +36,20 @@ public class VehicleRentalStation extends RentalStation implements Serializable,
      * Whether or not this rental station models a floating vehicle that is parked outside of a docking station on some
      * StreetEdge.
      */
-    @XmlAttribute
     @JsonSerialize
     public boolean isFloatingVehicle = false;
 
     /**
      * List of compatible network names. Null (default) to be compatible with all.
      */
-    @XmlAttribute
     @JsonSerialize
     public Set<String> networks = null;
+
+    /**
+     * The type of vehicle available at this station.
+     */
+    @JsonSerialize
+    public VehicleType type = VehicleType.UNKNOWN;
 
     /**
      * This is used for localization. Currently "vehicle rental station" isn't part of the name.
@@ -62,14 +64,12 @@ public class VehicleRentalStation extends RentalStation implements Serializable,
      *
      */
     @JsonIgnore
-    @XmlTransient
     public Locale locale = ResourceBundleSingleton.INSTANCE.getLocale(null);
 
     /**
      * Whether or not this station is a border dropoff for routing purposes
      */
     @JsonIgnore
-    @XmlTransient
     public boolean isBorderDropoff = false;
 
     public boolean equals(Object o) {
@@ -102,7 +102,6 @@ public class VehicleRentalStation extends RentalStation implements Serializable,
     /**
      * Gets translated name of vehicle rental station based on locale
      */
-    @XmlAttribute
     @JsonSerialize
     public String getName() {
         return name.toString(locale);

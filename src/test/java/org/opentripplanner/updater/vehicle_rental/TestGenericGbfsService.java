@@ -20,7 +20,7 @@ public class TestGenericGbfsService extends TestCase {
         config = mapper.createObjectNode();
         config.put("network", network);
         config.put("sourceType", "gbfs");
-        config.put("type", "micromobility-rental-updater");
+        config.put("type", "vehicle-rental-updater");
         config.put("url", "file:src/test/resources/vehicle_rental");
     }
 

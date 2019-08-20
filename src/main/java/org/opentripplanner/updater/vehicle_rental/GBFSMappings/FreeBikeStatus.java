@@ -19,5 +19,6 @@ public class FreeBikeStatus extends BaseGtfsResponse {
         public Double lon;
         public Boolean is_reserved;
         public Boolean is_disabled;
+        public String vehicle_type;
     }
 }
