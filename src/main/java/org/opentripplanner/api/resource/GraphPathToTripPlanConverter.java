@@ -387,12 +387,17 @@ public abstract class GraphPathToTripPlanConverter {
         addFrequencyFields(states, leg);
 
         leg.rentedBike = states[0].isBikeRenting() && states[states.length - 1].isBikeRenting();
+        if (leg.rentedBike) {
+            leg.vehicleType = "bike";
+        }
 
         leg.rentedVehicle = states[0].isVehicleRenting() && states[states.length - 1].isVehicleRenting();
         if (leg.rentedVehicle) {
             Set<String> networks = states[0].getVehicleRentalNetworks();
             if (networks != null && !networks.isEmpty())
                 leg.providerId = ((String)networks.toArray()[0]).toLowerCase();
+            //leg.vehicleType = states[0].getVehicleType().toString();
+            leg.vehicleType = "scooter";
         }
 
         // check at start or end because either could be the very beginning or end of the trip
@@ -604,6 +609,10 @@ public abstract class GraphPathToTripPlanConverter {
 
             if (mode != null) {
                 leg.mode = mode.toString();
+
+                // TEMP
+                if (leg.mode == "MICROMOBILITY")
+                    leg.mode = "BICYCLE";
             }
 
             if (alerts != null) {

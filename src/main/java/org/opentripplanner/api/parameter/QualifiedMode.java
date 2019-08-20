@@ -11,12 +11,21 @@ import java.util.Set;
 public class QualifiedMode implements Serializable {
     private static final long serialVersionUID = 1L;
     
-    public final TraverseMode mode;
+    public TraverseMode mode;
     public final Set<Qualifier> qualifiers = Sets.newHashSet();
 
     public QualifiedMode(String qMode) {
         String[] elements = qMode.split("_");
-        mode = TraverseMode.valueOf(elements[0].trim());
+        String modeName = elements[0].trim();
+
+        // TEMP
+        // Change all bike requests to micromobility requests for backward compatibility.
+        if (modeName.equals("BICYCLE"))
+        {
+            modeName = "MICROMOBILITY";
+        }
+
+        mode = TraverseMode.valueOf(modeName);
         if (mode == null) {
             throw new InvalidParameterException();
         }
