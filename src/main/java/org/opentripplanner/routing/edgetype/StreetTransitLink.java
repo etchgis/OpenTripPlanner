@@ -108,7 +108,7 @@ public class StreetTransitLink extends Edge {
         if (req.allowVehicleRental && s0.isVehicleRenting()) {
             // check to see if transit may be used after transitioning out of a vehicle rental
             if (req.arriveBy) {
-                // the search backwards has yet to reach a rental vehicle. This implementation does not allow brining a
+                // the search backwards has yet to reach a rental vehicle. This implementation does not allow bringing a
                 // rented vehicle on transit. Therefore the search must continue so a rental vehicle can be found to
                 // pickup.
                 return null;
