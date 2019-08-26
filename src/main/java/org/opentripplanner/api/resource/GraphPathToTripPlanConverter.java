@@ -566,6 +566,7 @@ public abstract class GraphPathToTripPlanConverter {
 
                 case WALK:
                 case BICYCLE:
+                case MICROMOBILITY:
                 case CAR:
                     itinerary.walkTime += state.getTimeDeltaSeconds();
             }
