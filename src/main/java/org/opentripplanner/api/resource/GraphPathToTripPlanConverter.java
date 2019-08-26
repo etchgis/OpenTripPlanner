@@ -391,6 +391,13 @@ public abstract class GraphPathToTripPlanConverter {
             leg.vehicleType = "bike";
         }
 
+        // Helpful for debugging
+        //LOG.info("leg start: {}/{} {}/{} end: {}/{} {}/{} -- mode 1: {} -- mode 2: {} -- mode n-1 {} -- mode n: {}", states[0].isVehicleRenting(),
+        //    states[0].getBackMode(), states[1].isVehicleRenting(),
+        //    states[1].getBackMode(), states[states.length - 2].isVehicleRenting(), states[states.length - 2].getBackMode(),
+        //    states[states.length - 1].isVehicleRenting(), states[states.length - 1].getBackMode(),
+        //    states[0].toString(), states[1].toString(), states[states.length-2].toString(), states[states.length-1].toString());
+
         leg.rentedVehicle = states[0].isVehicleRenting() && states[states.length - 1].isVehicleRenting();
         if (leg.rentedVehicle) {
             Set<String> networks = states[0].getVehicleRentalNetworks();
