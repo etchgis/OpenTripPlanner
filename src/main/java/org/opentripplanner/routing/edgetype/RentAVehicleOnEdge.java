@@ -106,14 +106,13 @@ public class RentAVehicleOnEdge extends RentAVehicleAbstractEdge {
             // looks like it's ok to have rented a vehicle from this station. Transition out of the vehicle rental state.
             s1e.setVehicleType(station.type);   // TODO: is this okay to do? what about other states?
             s1e.endVehicleRenting();
-            s1e.setBackMode(s0.getNonTransitMode());
         } else {
             // make sure more than 1 vehicle isn't rented at once
             if (s0.isVehicleRenting()) {
                 // already renting a vehicle, don't allow 2 rentals
                 return null;
             }
-
+/*
             // make sure a vehicle is rented only once during pre/post transit parts of the trip
             if (s0.isEverBoarded()) {
                 if (s0.stateData.hasRentedVehiclePostTransit()) {
@@ -126,10 +125,13 @@ public class RentAVehicleOnEdge extends RentAVehicleAbstractEdge {
                     return null;
                 }
             }
-
+*/
             // looks like it's ok to have begun renting a vehicle from this station
             s1e.beginVehicleRenting(0, station.networks, station.type, station.isFloatingVehicle);
         }
+
+        // A rental station on-edge is always treated as walking, in both directions.
+        s1e.setBackMode(TraverseMode.WALK);
 
         // if this point is reached, it is possible to proceed with a vehicle rental pickup from this station
 

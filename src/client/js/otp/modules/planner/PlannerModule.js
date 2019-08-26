@@ -367,7 +367,8 @@ otp.modules.planner.PlannerModule =
             if(this.minimumMicromobilitySpeed) queryParams.minimumMicromobilitySpeed = this.minimumMicromobilitySpeed;
             if(this.maximumMicromobilitySpeed) queryParams.maximumMicromobilitySpeed = this.maximumMicromobilitySpeed;
 
-            queryParams.addTurnByTurn = false;
+            //queryParams.addTurnByTurn = false;
+            //queryParams.bannedVehicles = 'scooter';
 
             if(otp.config.routerId !== undefined) {
                 queryParams.routerId = otp.config.routerId;

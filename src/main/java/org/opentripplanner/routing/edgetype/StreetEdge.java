@@ -410,6 +410,7 @@ public class StreetEdge extends Edge implements Cloneable {
                     }
                     if (editorEndedVehicleRental != null) {
                         editorEndedVehicleRental.endVehicleRenting(); // done with vehicle rental use for now
+                        editorEndedVehicleRental.setBackMode(TraverseMode.WALK);
                         editorEndedVehicleRental.incrementWeight(options.vehicleRentalDropoffCost);
                         editorEndedVehicleRental.incrementTimeInSeconds(options.vehicleRentalDropoffTime);
                         State endedVehicleRentalState = editorEndedVehicleRental.makeState();
@@ -437,6 +438,7 @@ public class StreetEdge extends Edge implements Cloneable {
                     StateEditor editorEndedVehicleRental = doTraverse(s0, options, TraverseMode.WALK);
                     if (editorEndedVehicleRental != null) {
                         editorEndedVehicleRental.endVehicleRenting(); // done with vehicle rental use for now
+                        editorEndedVehicleRental.setBackMode(TraverseMode.WALK);
                         editorEndedVehicleRental.incrementWeight(options.vehicleRentalDropoffCost);
                         editorEndedVehicleRental.incrementTimeInSeconds(options.vehicleRentalDropoffTime);
                         State endedVehicleRentalState = editorEndedVehicleRental.makeState();
@@ -463,6 +465,7 @@ public class StreetEdge extends Edge implements Cloneable {
                     editorWithVehicleRental.incrementTimeInSeconds(options.vehicleRentalPickupTime);
                     // TODO by Jon: track list of allowable types for edge, pass to state, then weed them out.
                     editorWithVehicleRental.beginVehicleRenting(getDistance(), vehicleNetworks, VehicleType.UNKNOWN, true);
+                    editorWithVehicleRental.setBackMode(TraverseMode.MICROMOBILITY);
                     State editorWithVehicleRentalState = editorWithVehicleRental.makeState();
                     if (state != null) {
                         // make the forkState be of the non-vehicle-rental mode so it's possible to build walk steps

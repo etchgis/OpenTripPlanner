@@ -148,9 +148,13 @@ public class State implements Cloneable {
                 stateData.nonTransitMode = TraverseMode.WALK;
             }
         }
+        // (Jon) Should be DISABLED because backwards searches cannot always begin on a scooter;
+        // this leaves no possibility of arriving on foot in a forward search.
+        // Docked vehicles can never be dropped off at the destination, for example.
         // Initialize the non-transit mode when a vehicle rental is possible.
         else if (options.allowVehicleRental) {
-            if (options.arriveBy) {
+            // the isFinal method allows ending on a floating vehicle, so we must offer the reverse here.
+            /*if (options.arriveBy) {
                 // if searching with arriveBy mode, it is possible that the search ended with a rental vehicle being dropped
                 // off at the target. See if that could be possible.
                 StreetEdge firstStreetEdge = getFirstSeenStreetEdge(vertex);
@@ -161,11 +165,15 @@ public class State implements Cloneable {
                     // looks like it is possible to have began renting a vehicle from the first seen street edge
                     // begin the search with a rented vehicle in use.
                     beginVehicleRenting(0, firstStreetEdge.getVehicleNetworks(), VehicleType.UNKNOWN, true);
+
+                    // this leg would end on a micromobility state in the forward direction, so we must
+                    // do so here.
+                    //stateData.backMode = TraverseMode.MICROMOBILITY;
                 } else {
-                    // not possible to have rented a car, start out in walk mode
+                    // not possible to have rented a vehicle, start out in walk mode
                     stateData.nonTransitMode = TraverseMode.WALK;
                 }
-            } else {
+            } else*/ {
                 // always start depart at searches in WALK mode. Need to walk to a vehicle rental station in order to
                 // pick up a vehicle
                 stateData.nonTransitMode = TraverseMode.WALK;
@@ -775,6 +783,11 @@ public class State implements Cloneable {
                     ret = edge.traverse(ret);
                 }
 
+                //if (ret != null && ret.getBackMode() != null && orig.getBackMode() != null &&
+                //ret.getBackMode() != orig.getBackMode()) {
+                //    LOG.warn("OOPS!!! " + ret.getBackMode() + " does not match " + orig.getBackMode());
+                //}
+
                 if (ret != null && ret.getBackMode() != null && orig.getBackMode() != null &&
                         ret.getBackMode() != orig.getBackMode()) {
                     ret = ret.next; // Keep the mode the same as on the original graph path (in K+R)
@@ -810,7 +823,6 @@ public class State implements Cloneable {
                 editor.incrementVehicleRentalDistance(orig.getVehicleRentalDistanceDelta());
 
                 // propagate the modes through to the reversed edge
-                editor.setBackMode(orig.getBackMode());
                 State origBackState = orig.getBackState();
 
                 if (orig.isBikeRenting() && !origBackState.isBikeRenting()) {
@@ -836,8 +848,10 @@ public class State implements Cloneable {
                     editor.setBikeParked(!orig.isBikeParked());
                 if (orig.isUsingHailedCar() != origBackState.isUsingHailedCar())
                     editor.setUsingHailedCar(!orig.isUsingHailedCar());
-                if (orig.isVehicleRenting() != origBackState.isVehicleRenting())
-                    editor.setVehicleRenting(!orig.isVehicleRenting());
+
+                // This should come after the above set* calls in case they change
+                // the back mode. We need to match the original mode.
+                editor.setBackMode(orig.getBackMode());
 
                 editor.setNumBoardings(getNumBoardings() - orig.getNumBoardings());
 
@@ -1093,7 +1107,7 @@ public class State implements Cloneable {
                 return false;
             }
 
-            if (isEverBoarded()) {
+            /*if (isEverBoarded()) {
                 // make sure a vehicle hasn't already been rented after transit
                 if (stateData.hasRentedVehiclePostTransit()) {
                     // a vehicle has already been rented after taking transit, vehicle rental not possible anymore
@@ -1106,7 +1120,7 @@ public class State implements Cloneable {
                     // transit
                     return false;
                 }
-            }
+            }*/
         } else {
             // make sure a vehicle is currently being rented.
             if (!this.isVehicleRenting()) {
@@ -1200,7 +1214,7 @@ public class State implements Cloneable {
     ) {
         stateData.usingRentedVehicle = true;
         stateData.nonTransitMode = TraverseMode.MICROMOBILITY;
-        stateData.backMode = backState != null ? backState.getNonTransitMode() : null;
+        //stateData.backMode = backState != null ? backState.getNonTransitMode() : null;
         stateData.vehicleRentalNetworks = networks;
         stateData.vehicleType = type;
         stateData.rentedVehicleAllowsFloatingDropoffs = rentedVehicleAllowsFloatingDropoffs;

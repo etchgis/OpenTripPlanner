@@ -763,7 +763,8 @@ public class StreetSplitter {
             else if (modes.getBicycle())
                 nonTransitMode = TraverseMode.BICYCLE;
             else if (modes.getMicromobility())
-                nonTransitMode = TraverseMode.MICROMOBILITY;
+                //nonTransitMode = TraverseMode.MICROMOBILITY;
+                nonTransitMode = TraverseMode.WALK;
         }
 
         if(!linkToGraph(closest, nonTransitMode, options, NON_DESTRUCTIVE_SPLIT, false)) {

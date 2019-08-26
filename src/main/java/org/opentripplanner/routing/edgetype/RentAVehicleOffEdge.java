@@ -72,16 +72,20 @@ public class RentAVehicleOffEdge extends RentAVehicleAbstractEdge {
         StateEditor s1e = s0.edit(this);
 
         if (options.arriveBy) {
-            // if in arrive-by mode, the search is progressing backwards and we are entering a rented vehicle state
-            s1e.beginVehicleRenting(0, station.networks, station.type, !station.isBorderDropoff);
+            // if in arrive-by mode, the search is progressing backwards and we are entering a rented vehicle state.
+            // if this is a virtual station created around a restricted region, mark the state as a floating vehicle. Otherwise
+            // we assume it's a dock-only vehicle.
+            s1e.beginVehicleRenting(0, station.networks, station.type, station.isBorderDropoff);
         } else {
             if (s0.getVehicleType() != station.type)
                 return null;
 
             // if in depart-at mode, this is the conclusion of a vehicle rental
             s1e.endVehicleRenting();
-            s1e.setBackMode(TraverseMode.WALK);
         }
+
+        // A rental station off-edge is always treated as walking, in both directions.
+        s1e.setBackMode(TraverseMode.WALK);
 
         // increment weight and time associated with dropping off the vehicle
         s1e.incrementWeight(options.vehicleRentalDropoffCost);
