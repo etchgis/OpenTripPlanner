@@ -170,10 +170,10 @@ public class RoutingRequest implements Cloneable, Serializable {
     public int transferPenalty = 0;
 
     /** A multiplier for how bad walking is, compared to being in transit for equal lengths of time.
-     *  Defaults to 2. Empirically, values between 10 and 20 seem to correspond well to the concept
+     *  Empirically, values between 10 and 20 seem to correspond well to the concept
      *  of not wanting to walk too much without asking for totally ridiculous itineraries, but this
      *  observation should in no way be taken as scientific or definitive. Your mileage may vary.*/
-    public double walkReluctance = 2.0;
+    public double walkReluctance = 15.0;
 
     /** Used instead of walk reluctance for stairs */
     public double stairsReluctance = 2.0;
@@ -259,7 +259,7 @@ public class RoutingRequest implements Cloneable, Serializable {
     public double waitReluctance = 1.0;
 
     /** How much less bad is waiting at the beginning of the trip (replaces waitReluctance on the first boarding) */
-    public double waitAtBeginningFactor = 0.8;
+    public double waitAtBeginningFactor = 0.6;
 
     /** This prevents unnecessary transfers by adding a cost for boarding a vehicle. */
     public int walkBoardCost = 60 * 10;
