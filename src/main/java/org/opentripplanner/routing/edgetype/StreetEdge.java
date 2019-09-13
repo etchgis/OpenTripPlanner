@@ -353,6 +353,7 @@ public class StreetEdge extends Edge implements Cloneable {
                 StateEditor editorNonCar = doTraverse(s0, options, currMode);
                 if (editorCar != null) {
                     editorCar.boardHailedCar(getDistance()); // start of TNC use
+                    editorCar.incrementWeight(options.carHailCost);
                     if (editorNonCar != null) {
                         // make the forkState be of the non-car mode so it's possible to build walk steps
                         State forkState = editorNonCar.makeState();
