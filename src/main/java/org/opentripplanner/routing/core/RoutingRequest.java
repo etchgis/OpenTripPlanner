@@ -173,7 +173,7 @@ public class RoutingRequest implements Cloneable, Serializable {
      *  Empirically, values between 10 and 20 seem to correspond well to the concept
      *  of not wanting to walk too much without asking for totally ridiculous itineraries, but this
      *  observation should in no way be taken as scientific or definitive. Your mileage may vary.*/
-    public double walkReluctance = 15.0;
+    public double walkReluctance = 2.0;
 
     /** Used instead of walk reluctance for stairs */
     public double stairsReluctance = 2.0;
