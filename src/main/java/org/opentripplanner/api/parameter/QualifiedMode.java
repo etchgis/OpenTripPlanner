@@ -66,17 +66,26 @@ public class QualifiedMode implements Serializable {
                 req.allowVehicleRental = true;
             }
         }
-        if (usingTransit && this.mode == TraverseMode.CAR) {
-            if (this.qualifiers.contains(Qualifier.PARK)) {
-                req.parkAndRide = true;
-            } else if (this.qualifiers.contains(Qualifier.HAIL)) {
+        if (this.mode == TraverseMode.CAR) {
+
+            if (this.qualifiers.contains(Qualifier.HAIL)) {
                 req.useTransportationNetworkCompany = true;
-                req.driveTimeReluctance = 1.75;
-                req.driveDistanceReluctance = 0.2;
-            } else {
-                req.kissAndRide = true;
+                // TODO this is probably needed but causes issues in some places where trip must end on foot, so
+                // user has to walk around block, like Luxe 12.5 to North Market!
+                //req.modes.setWalk(true); // need to walk after exiting car
             }
-            req.modes.setWalk(true); // need to walk after dropping the car off
+
+            if (usingTransit) {
+                if (this.qualifiers.contains(Qualifier.PARK)) {
+                    req.parkAndRide = true;
+                } else if (this.qualifiers.contains(Qualifier.HAIL)) {
+                    req.driveTimeReluctance = 1.75;
+                    req.driveDistanceReluctance = 0.2;
+                } else {
+                    req.kissAndRide = true;
+                }
+                req.modes.setWalk(true); // need to walk after dropping the car off / getting dropped off
+            }
         }
     }
 
