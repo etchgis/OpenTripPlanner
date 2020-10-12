@@ -419,6 +419,18 @@ public class StreetEdge extends Edge implements Cloneable {
                     State keepVehicleRentalState = null;
                     if (editorKeepVehicleRental != null) {
                         editorKeepVehicleRental.setBackMode(TraverseMode.WALK);
+
+                        // We don't want a trip to end while walking a vehicle, because there's an alternative timeline where
+                        // the vehicle is dropped off before walking to the destination. One solution is to prevent a vehicle
+                        // walking state from being final, to force it to be dropped off at the start of the walk-only path in
+                        // the other split timeline. But that's a hack that doesn't model the real situation.
+                        // Imagine a series of stairs + landings leading up to the destination. Each landing will produce a
+                        // new split in the timeline. The ideal trip is one where the user dropped the vehicle off at the
+                        // ground level. Write a test to model this.
+                        // TODO: This penalty is temporary until we get the bikeWalkingBike condition to work properly. We just want
+                        // to "outprice" the dropoff penalty.
+                        //editorKeepVehicleRental.incrementWeight(100);
+
                         keepVehicleRentalState = editorKeepVehicleRental.makeState();
                     }
                     if (editorEndedVehicleRental != null) {
