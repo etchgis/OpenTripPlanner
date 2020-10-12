@@ -53,12 +53,6 @@ public class VehicleRentalStation extends RentalStation implements Serializable,
     public boolean isFloatingVehicle = false;
 
     /**
-     * List of compatible network names. Null (default) to be compatible with all.
-     */
-    @JsonSerialize
-    public Set<String> networks = null;
-
-    /**
      * The type of vehicle available at this station.
      */
     @JsonSerialize

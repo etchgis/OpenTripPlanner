@@ -1262,7 +1262,6 @@ public class State implements Cloneable {
     ) {
         stateData.usingRentedVehicle = true;
         stateData.nonTransitMode = TraverseMode.MICROMOBILITY;
-        //stateData.backMode = backState != null ? backState.getNonTransitMode() : null;
         stateData.backMode = backState != null ? backState.getNonTransitMode() : null;
         stateData.vehicleRentalNetworks = networks;
         stateData.vehicleType = type;

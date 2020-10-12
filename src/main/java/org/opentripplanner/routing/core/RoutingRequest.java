@@ -231,7 +231,7 @@ public class RoutingRequest implements Cloneable, Serializable {
     /**
      * Cost of renting a vehicle. The cost is a bit more than actual time to model the associated cost and trouble.
      */
-    public int vehicleRentalPickupCost = 120;
+    public int vehicleRentalPickupCost = 240;
 
     /** Time to drop-off a rented vehicle */
     public int vehicleRentalDropoffTime = 30;

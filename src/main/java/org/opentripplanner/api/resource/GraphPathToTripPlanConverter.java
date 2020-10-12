@@ -306,7 +306,7 @@ public abstract class GraphPathToTripPlanConverter {
         }
 
         // TODO: track walking a vehicle in the state? use backWalkingBike or a new variable?
-        boolean ridingOrWalkingVehicle = false;
+        boolean willContinueRidingOrWalkingVehicle = false;
 
         int lastStateIndex = states.length - 1;
         int[] legIndexPairs = {0, lastStateIndex};
@@ -318,17 +318,27 @@ public abstract class GraphPathToTripPlanConverter {
 
             if (backMode == null || forwardMode == null) continue;
 
-            if (states[i].isVehicleRenting()) {
-                if (states[i+1].isVehicleRenting()) {
-                    // A complicating factor is that the WALK before the first MICROMOBILITY
-                    // is marked with isVehicleRenting.
-                    //if (backMode == TraverseMode.MICROMOBILITY && (forwardMode != TraverseMode.WALK || (i + 2) > lastStateIndex || states[i+2].isVehicleRenting()))
-                    //    ridingOrWalkingVehicle = false;
-                    if (backMode == TraverseMode.WALK && (forwardMode != TraverseMode.MICROMOBILITY) || (i - 1) < 0 || states[i-1].isVehicleRenting())
-                        ridingOrWalkingVehicle = true;
-                }
-                else {
-                    ridingOrWalkingVehicle = false;
+            // Handle case where we transition directly from one rental vehicle to another, e.g. scooter to
+            // long-range bike.
+            // Also, combine all vehicle riding and vehicle walking legs together for the same
+            // vehicle.
+            // A complicating factor is that the WALKs before or after the MICROMOBILITY states
+            // may be marked with isVehicleRenting, and we don't want to miss a mode transition
+            // at those WALK states. The ridingOrWalkingVehicle value must be false when moving
+            // from or two these end WALKs.
+            boolean backRenting = states[i].isVehicleRenting();
+            //boolean forwardRenting = states[i + 1].isVehicleRenting();
+            if (willContinueRidingOrWalkingVehicle || (backRenting && backMode == TraverseMode.MICROMOBILITY)) {
+                willContinueRidingOrWalkingVehicle = false;
+                for (int j = i + 1; j <= lastStateIndex; j++) {
+                    if (!states[j].isVehicleRenting())
+                        break;
+                    // TODO: check for change in vehicle network / ID and break if so, to identify vehicle switching and cut off the leg here.
+
+                    if (states[j].getBackMode() == TraverseMode.MICROMOBILITY) {
+                        willContinueRidingOrWalkingVehicle = true;
+                        break;
+                    }
                 }
             }
 
@@ -357,7 +367,7 @@ public abstract class GraphPathToTripPlanConverter {
                 }
             } else if (
                 backMode != forwardMode &&                              // Mode change => leg switch
-                !ridingOrWalkingVehicle                                 // unless walking a vehicle
+                !willContinueRidingOrWalkingVehicle                     // unless walking a vehicle
                 ) {
                 legIndexPairs[1] = i;
                 legsIndexes.add(legIndexPairs);
