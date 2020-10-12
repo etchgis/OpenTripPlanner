@@ -441,15 +441,6 @@ public abstract class GraphPathToTripPlanConverter {
             leg.vehicleType = "bike";
         }
 
-        //leg.rentedVehicle = states[0].isVehicleRenting() && states[states.length - 1].isVehicleRenting();
-        //if (leg.rentedVehicle) {
-        if (leg.mode == "MICROMOBILITY") {
-            Set<String> networks = states[0].getVehicleRentalNetworks();
-            if (networks != null && !networks.isEmpty())
-                leg.providerId = ((String)networks.toArray()[0]).toLowerCase();
-            leg.vehicleType = states[0].getVehicleType().toString();
-        }
-
         // check at start or end because either could be the very beginning or end of the trip
         // which are temporary edges and stuff
         leg.hailedCar = states[0].isUsingHailedCar() || states[states.length - 1].isUsingHailedCar();
@@ -469,6 +460,15 @@ public abstract class GraphPathToTripPlanConverter {
                 }
             }
         }
+
+        leg.rentedVehicle = states[0].isVehicleRenting() && states[states.length - 1].isVehicleRenting();
+        if (leg.rentedVehicle) {
+            Set<String> networks = states[0].getVehicleRentalNetworks();
+            if (networks != null && !networks.isEmpty())
+                leg.providerId = ((String)networks.toArray()[0]).toLowerCase();
+            leg.vehicleType = states[0].getVehicleType().toString();
+        }
+
         return leg;
     }
 
