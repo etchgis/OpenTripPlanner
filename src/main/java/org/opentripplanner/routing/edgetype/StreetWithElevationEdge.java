@@ -14,7 +14,7 @@ import org.opentripplanner.util.NonLocalizedString;
 
 /**
  * A StreetEdge with elevation data.
- * 
+ *
  * @author laurent
  */
 public class StreetWithElevationEdge extends StreetEdge {
@@ -31,12 +31,6 @@ public class StreetWithElevationEdge extends StreetEdge {
 
     private boolean flattened;
 
-    private double effectiveWalkFactor = 1.0;
-
-    /**
-     * Remember to call the {@link #setElevationProfile(PackedCoordinateSequence, boolean)} to initiate elevation data.
-     */
-
     // an array of gradients as % incline
     private byte[] gradients;
 
@@ -50,14 +44,19 @@ public class StreetWithElevationEdge extends StreetEdge {
     // overestimate of aerodynamic drag.
     private double maximumDragResistiveForceComponent;
 
+    private double effectiveWalkFactor = 1.0;
+
+    /**
+     * Remember to call the {@link #setElevationProfile(PackedCoordinateSequence, boolean)} to initiate elevation data.
+     */
     public StreetWithElevationEdge(StreetVertex v1, StreetVertex v2, LineString geometry,
-            I18NString name, double length, StreetTraversalPermission permission, boolean back) {
+        I18NString name, double length, StreetTraversalPermission permission, boolean back) {
         super(v1, v2, geometry, name, length, permission, back);
 
     }
 
     public StreetWithElevationEdge(StreetVertex v1, StreetVertex v2, LineString geometry,
-            String name, double length, StreetTraversalPermission permission, boolean back) {
+        String name, double length, StreetTraversalPermission permission, boolean back) {
         this(v1, v2, geometry, new NonLocalizedString(name), length, permission, back);
     }
 
@@ -98,6 +97,8 @@ public class StreetWithElevationEdge extends StreetEdge {
         return CompactElevationProfile.uncompactElevationProfile(packedElevationProfile);
     }
 
+    public boolean hasPackedElevationProfile () { return packedElevationProfile != null; }
+
     @Override
     public boolean isElevationFlattened() {
         return flattened;
@@ -119,14 +120,6 @@ public class StreetWithElevationEdge extends StreetEdge {
     }
 
     /**
-     * The effective walk distance is adjusted to take the elevation into account.
-     */
-    @Override
-    public double getSlopeWalkSpeedEffectiveLength() {
-        return effectiveWalkFactor * getDistance();
-    }
-
-    /**
      * Override the calculateSpeed method, but only do special calculations for Micromobility. There are separate
      * methods that are used to calculate speed for walking and bicycling. However, the calculations for bicycling are
      * questionable and this method could theoretically be used to calculate bicycling speeds.
@@ -140,10 +133,12 @@ public class StreetWithElevationEdge extends StreetEdge {
     @Override
     public double calculateSpeed(RoutingRequest options, TraverseMode traverseMode, long timeMillis) {
         // use default StreetEdge method to calculate speed if the traverseMode is not micromobility
-        if (traverseMode != TraverseMode.MICROMOBILITY) return super.calculateSpeed(options, traverseMode, timeMillis);
+        if (traverseMode != TraverseMode.MICROMOBILITY)
+            return super.calculateSpeed(options, traverseMode, timeMillis);
 
         // TODO: figure out why this is null sometimes
-        if (gradients == null) return super.calculateSpeed(options, traverseMode, timeMillis);
+        if (gradients == null)
+            return super.calculateSpeed(options, traverseMode, timeMillis);
 
         // calculate and accumulate the total travel time and distance it would take to traverse each gradient
         // these values will eventually be used to calculate an overall average speed.
@@ -178,10 +173,18 @@ public class StreetWithElevationEdge extends StreetEdge {
         return distance / time;
     }
 
+    /**
+     * The effective walk distance is adjusted to take the elevation into account.
+     */
+    @Override
+    public double getSlopeWalkSpeedEffectiveLength() {
+        return effectiveWalkFactor * getDistance();
+    }
+
     @Override
     public String toString() {
         return "StreetWithElevationEdge(" + getId() + ", " + getName() + ", " + fromv + " -> "
-                + tov + " length=" + this.getDistance() + " carSpeed=" + this.getCarSpeed()
-                + " permission=" + this.getPermission() + ")";
+            + tov + " length=" + this.getDistance() + " carSpeed=" + this.getCarSpeed()
+            + " permission=" + this.getPermission() + ")";
     }
 }

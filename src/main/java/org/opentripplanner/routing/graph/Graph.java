@@ -23,6 +23,7 @@ import org.apache.commons.math3.stat.descriptive.rank.Median;
 import org.joda.time.DateTime;
 import org.objenesis.strategy.SerializingInstantiatorStrategy;
 import org.opentripplanner.calendar.impl.CalendarServiceImpl;
+import org.opentripplanner.graph_builder.module.GraphBuilderModuleSummary;
 import org.opentripplanner.model.Agency;
 import org.opentripplanner.model.FeedScopedId;
 import org.opentripplanner.model.Stop;
@@ -48,8 +49,6 @@ import org.opentripplanner.routing.edgetype.EdgeWithCleanup;
 import org.opentripplanner.routing.edgetype.StreetEdge;
 import org.opentripplanner.routing.edgetype.TripPattern;
 import org.opentripplanner.routing.flex.FlexIndex;
-import org.opentripplanner.routing.impl.DefaultStreetVertexIndexFactory;
-import org.opentripplanner.routing.services.StreetVertexIndexFactory;
 import org.opentripplanner.routing.services.StreetVertexIndexService;
 import org.opentripplanner.routing.services.notes.StreetNotesService;
 import org.opentripplanner.routing.trippattern.Deduplicator;
@@ -121,13 +120,15 @@ public class Graph implements Serializable {
 
     /**
      * Map from GTFS ServiceIds to integers close to 0. Allows using BitSets instead of Set<Object>.
-     * An empty Map is created before the Graph is built to allow registering IDs from multiple feeds.   
+     * An empty Map is created before the Graph is built to allow registering IDs from multiple feeds.
      */
     public final Map<FeedScopedId, Integer> serviceCodes = Maps.newHashMap();
 
     public transient TimetableSnapshotSource timetableSnapshotSource = null;
 
     private transient List<GraphBuilderAnnotation> graphBuilderAnnotations = new LinkedList<GraphBuilderAnnotation>(); // initialize for tests
+
+    private transient List<GraphBuilderModuleSummary> graphBuildModuleSummaries = new ArrayList<>();
 
     private Map<String, Collection<Agency>> agenciesForFeedId = new HashMap<>();
 
@@ -199,7 +200,7 @@ public class Graph implements Serializable {
 
     /** Has information how much time alighting a vehicle takes. Can be significant eg in airplanes or ferries. */
     public Map<TraverseMode, Integer> alightTimes = Collections.EMPTY_MAP;
-    
+
     /** How should we cluster stops? By 'proximity' or 'ParentStation' */
     public StopClusterMode stopClusterMode = StopClusterMode.proximity;
 
@@ -208,6 +209,9 @@ public class Graph implements Serializable {
 
     /** Parent stops **/
     public Map<FeedScopedId, Stop> parentStopById = new HashMap<>();
+
+    /** used during graph build to store known elevations */
+    private transient HashMap<Vertex, Double> knownElevations;
 
     /** Whether to use flex modes */
     public boolean useFlexService = false;
@@ -249,8 +253,8 @@ public class Graph implements Serializable {
     public void removeVertex(Vertex v) {
         if (vertices.remove(v.getLabel()) != v) {
             LOG.error(
-                    "attempting to remove vertex that is not in graph (or mapping value was null): {}",
-                    v);
+                "attempting to remove vertex that is not in graph (or mapping value was null): {}",
+                v);
         }
     }
 
@@ -464,8 +468,8 @@ public class Graph implements Serializable {
     public Collection<StreetEdge> getStreetEdges() {
         Collection<Edge> allEdges = this.getEdges();
         return Lists.newArrayList(Iterables.filter(allEdges, StreetEdge.class));
-    }    
-    
+    }
+
     public boolean containsVertex(Vertex v) {
         return (v != null) && vertices.get(v.getLabel()) == v;
     }
@@ -584,7 +588,7 @@ public class Graph implements Serializable {
 
     /**
      * Find the total number of edges in this Graph. There are assumed to be no Edges in an incoming edge list that are not in an outgoing edge list.
-     * 
+     *
      * @return number of outgoing edges in the graph
      */
     public int countEdges() {
@@ -604,13 +608,13 @@ public class Graph implements Serializable {
             this.edgeById.put(e.getId(), e);
         }
     }
-    
+
     /**
      * Rebuilds any indices on the basis of current vertex and edge IDs.
-     * 
-     * If you want the index to be accurate, you must run this every time the 
+     *
+     * If you want the index to be accurate, you must run this every time the
      * vertex or edge set changes.
-     * 
+     *
      * TODO(flamholz): keep the indices up to date with changes to the graph.
      * This is not simple because the Vertex constructor may add itself to the graph
      * before the Vertex has any edges, so updating indices on addVertex is insufficient.
@@ -636,17 +640,18 @@ public class Graph implements Serializable {
     }
 
     private void readObject(ObjectInputStream inputStream) throws ClassNotFoundException,
-            IOException {
+        IOException {
         inputStream.defaultReadObject();
     }
 
     /**
-     * Add a graph builder annotation to this graph's list of graph builder annotations. The return value of this method is the annotation's message,
-     * which allows for a single-line idiom that creates, registers, and logs a new graph builder annotation:
-     * log.warning(graph.addBuilderAnnotation(new SomeKindOfAnnotation(param1, param2)));
-     * 
-     * If the graphBuilderAnnotations field of this graph is null, the annotation is not actually saved, but the message is still returned. This
-     * allows annotation registration to be turned off, saving memory and disk space when the user is not interested in annotations.
+     * Add a graph builder annotation to this graph's list of graph builder annotations. The return value of this method
+     * is the annotation's message, which allows for a single-line idiom that creates, registers, and logs a new graph
+     * builder annotation: log.warning(graph.addBuilderAnnotation(new SomeKindOfAnnotation(param1, param2)));
+     *
+     * If the graphBuilderAnnotations field of this graph is null, the annotation is not actually saved, but the message
+     * is still returned. This allows annotation registration to be turned off, saving memory and disk space when the
+     * user is not interested in annotations.
      */
     public String addBuilderAnnotation(GraphBuilderAnnotation gba) {
         String ret = gba.getMessage();
@@ -657,6 +662,14 @@ public class Graph implements Serializable {
 
     public List<GraphBuilderAnnotation> getBuilderAnnotations() {
         return this.graphBuilderAnnotations;
+    }
+
+    public void addGraphBuilderSummary(GraphBuilderModuleSummary gbms) {
+        this.graphBuildModuleSummaries.add(gbms);
+    }
+
+    public List<GraphBuilderModuleSummary> getBuilderSummaries() {
+        return this.graphBuildModuleSummaries;
     }
 
     /**
@@ -671,6 +684,14 @@ public class Graph implements Serializable {
         return transitModes;
     }
 
+    public HashMap<Vertex, Double> getKnownElevations() {
+        return knownElevations;
+    }
+
+    public void setKnownElevations(HashMap<Vertex, Double> knownElevations) {
+        this.knownElevations = knownElevations;
+    }
+
     /* (de) serialization */
 
     public static Graph load(File file) throws IOException {
@@ -679,21 +700,42 @@ public class Graph implements Serializable {
     }
 
     /**
-     * Perform indexing on vertices, edges, and timetables, and create transient data structures.
-     * This used to be done in readObject methods upon deserialization, but stand-alone mode now
-     * allows passing graphs from graphbuilder to server in memory, without a round trip through
-     * serialization. 
-     * TODO: do we really need a factory for different street vertex indexes?
+     * Perform indexing on vertices, edges, and timetables, and create transient data structures. This used to be done
+     * in readObject methods upon deserialization, but stand-alone mode now allows passing graphs from graphbuilder to
+     * server in memory, without a round trip through serialization.
+     *
+     * After a refactor in the year 2019, the method signature was changed to no longer take in an argument of a
+     * StreetVertexIndexFactory as a single factory was always being used to create the same StreetVertexIndexService.
+     * Instead the management of instances of StreetVertexIndexServices is encapsulated within this method only. Also,
+     * the parameter of `recreateStreetIndex` was added.
+     *
+     * In a lot of cases, especially when this method is called from certain build phases, the streetIndex does not need
+     * to be recreated. However, in other use cases such as the "build graph over wire" and in-memory graph builds where
+     * a newly created graph is used immediately instead of it being saved and the program exiting, a reindex is needed
+     * in order to make sure that every non-transit edge with geographic data is available in the respective indexes.
+     * In those use cases, the streetIndex was created during the graph building phase for the purposes of splitting
+     * various edges to insert certain items like transit stops. However, the graph does need to be reindexed after all
+     * items are inserted in order to have full knowledge of all items with geography such as SimpleTransfers and
+     * StreetTransitLinks. From looking at the code paths of where a new index is requested, it seems that the indexing
+     * takes place in a manner that would not result in two different StreetSplitters being used at once as the old one
+     * is typically used only during graph building.
+     *
+     * However, due to the potential for problems to arise with two StreetVertexIndexServices and StreetSplitters being
+     * active at once, a warning is logged just in case.
+     *
+     * @param recreateStreetIndex if true, recreate the streetIndex even if it already exists. Make sure you know what
+     *                            you're doing when setting this to true! See above method documentation.
      */
-    public void index (StreetVertexIndexFactory indexFactory) {
-        if (streetIndex != null) {
-            throw new UnsupportedOperationException(
-                "A streetIndex has already been defined. Can't you just reuse the existing one?"
-            );
+    public void index (boolean recreateStreetIndex) {
+        if (streetIndex == null || recreateStreetIndex) {
+            if (streetIndex != null && recreateStreetIndex) {
+                LOG.warn("Overwriting an existing streetIndex! This could lead to problems if both the old and new streetIndex are used. Make sure only the new streetIndex is used going forward.");
+            }
+            LOG.info("building street index");
+            streetIndex = new StreetVertexIndexService(this);
+            LOG.info("street index built");
         }
-        streetIndex = indexFactory.newIndex(this);
-        LOG.debug("street index built.");
-        LOG.debug("Rebuilding edge and vertex indices.");
+        LOG.info("Rebuilding edge and vertex indices");
         rebuildVertexAndEdgeIndices();
         Set<TripPattern> tableTripPatterns = Sets.newHashSet();
         for (PatternArriveVertex pav : Iterables.filter(this.getVertices(), PatternArriveVertex.class)) {
@@ -709,7 +751,7 @@ public class Graph implements Serializable {
             flexIndex.init(this);
         }
     }
-    
+
     public static Graph load(InputStream in) {
         // TODO store version information, halt load if versions mismatch
         Input input = new Input(in);
@@ -738,14 +780,14 @@ public class Graph implements Serializable {
         }
 
         LOG.info("Main graph read. |V|={} |E|={}", graph.countVertices(), graph.countEdges());
-        graph.index(new DefaultStreetVertexIndexFactory());
+        graph.index(true);
         return graph;
     }
 
     /**
      * Compares the OTP version number stored in the graph with that of the currently running instance. Logs warnings explaining that mismatched
      * versions can cause problems.
-     * 
+     *
      * @return false if Maven versions match (even if commit ids do not match), true if Maven version of graph does not match this version of OTP or
      *         graphs are otherwise obviously incompatible.
      */
@@ -760,12 +802,12 @@ public class Graph implements Serializable {
         } else if (!v.commit.equals(gv.commit)) {
             if (v.qualifier.equals("SNAPSHOT")) {
                 LOG.warn("This graph was built with the same SNAPSHOT version of OTP, but a "
-                        + "different commit. Please rebuild the graph if you experience incorrect "
-                        + "behavior. ");
+                    + "different commit. Please rebuild the graph if you experience incorrect "
+                    + "behavior. ");
                 return false; // graph might still work
             } else {
                 LOG.error("Commit mismatch in non-SNAPSHOT version. This implies a problem with "
-                        + "the build or release process.");
+                    + "the build or release process.");
                 return true; // major problem
             }
         } else {
@@ -1031,11 +1073,11 @@ public class Graph implements Serializable {
 
     // lazy-init geom index on an as needed basis
     public GeometryIndex getGeomIndex() {
-    	
-    	if(this.geomIndex == null)
-    		this.geomIndex = new GeometryIndex(this);
-    	
-    	return this.geomIndex;
+
+        if(this.geomIndex == null)
+            this.geomIndex = new GeometryIndex(this);
+
+        return this.geomIndex;
     }
 
     // lazy-init sample factor on an as needed basis
@@ -1043,7 +1085,7 @@ public class Graph implements Serializable {
         if(this.sampleFactory == null)
             this.sampleFactory = new SampleFactory(this);
 
-        return this.sampleFactory;	
+        return this.sampleFactory;
     }
 
     /**

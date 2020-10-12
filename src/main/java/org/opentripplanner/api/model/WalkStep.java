@@ -129,7 +129,7 @@ public class WalkStep {
     }
 
     public String toString() {
-        String direction = absoluteDirection.toString();
+        String direction = absoluteDirection != null ? absoluteDirection.toString() : "null";
         if (relativeDirection != null) {
             direction = relativeDirection.toString();
         }
@@ -137,7 +137,7 @@ public class WalkStep {
     }
 
     public static RelativeDirection getRelativeDirection(double lastAngle, double thisAngle,
-            boolean roundabout) {
+        boolean roundabout) {
 
         double angleDiff = thisAngle - lastAngle;
         if (angleDiff < 0) {

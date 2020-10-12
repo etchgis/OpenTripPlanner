@@ -1,24 +1,23 @@
 package org.opentripplanner.routing.edgetype;
 
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.LineString;
 import org.opentripplanner.model.Trip;
 import org.opentripplanner.common.geometry.GeometryUtils;
+import org.opentripplanner.routing.core.RoutingRequest;
 import org.opentripplanner.routing.core.State;
 import org.opentripplanner.routing.core.StateEditor;
 import org.opentripplanner.routing.core.TraverseMode;
-import org.opentripplanner.routing.core.RoutingRequest;
 import org.opentripplanner.routing.graph.Edge;
 import org.opentripplanner.routing.graph.Vertex;
 import org.opentripplanner.routing.vertextype.StreetVertex;
 import org.opentripplanner.routing.vertextype.TransitStop;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.LineString;
-
 import java.util.Locale;
 
-/** 
+/**
  * This represents the connection between a street vertex and a transit vertex
- * where going from the street to the vehicle is immediate -- such as at a 
+ * where going from the street to the vehicle is immediate -- such as at a
  * curbside bus stop.
  */
 public class StreetTransitLink extends Edge {
@@ -31,8 +30,8 @@ public class StreetTransitLink extends Edge {
     private TransitStop transitStop;
 
     public StreetTransitLink(StreetVertex fromv, TransitStop tov, boolean wheelchairAccessible) {
-    	super(fromv, tov);
-    	transitStop = tov;
+        super(fromv, tov);
+        transitStop = tov;
         this.wheelchairAccessible = wheelchairAccessible;
     }
 
@@ -71,8 +70,15 @@ public class StreetTransitLink extends Edge {
 
     public State traverse(State s0) {
 
-        // Forbid taking shortcuts composed of two street-transit links in a row. Also avoids spurious leg transitions.
-        if (s0.backEdge instanceof StreetTransitLink) {
+        // Forbid taking shortcuts composed of two street-transit links associated with the same stop in a row. Also
+        // avoids spurious leg transitions. As noted in https://github.com/opentripplanner/OpenTripPlanner/issues/2815,
+        // it is possible that two stops can have the same GPS coordinate thus creating a possibility for a
+        // legitimate StreetTransitLink > StreetTransitLink sequence, so only forbid two StreetTransitLinks to be taken
+        // if they are for the same stop.
+        if (
+            s0.backEdge instanceof StreetTransitLink &&
+                ((StreetTransitLink) s0.backEdge).transitStop == this.transitStop
+        ) {
             return null;
         }
 
@@ -105,6 +111,26 @@ public class StreetTransitLink extends Edge {
         // This allows searching for nearby transit stops using walk-only options.
         StateEditor s1 = s0.edit(this);
 
+        /* Determine if transit should be boarded if currently driving a car */
+        /* Note that in arriveBy searches this is double-traversing link edges to fork the state into both WALK and CAR mode. This is an insane hack. */
+        if (s0.getNonTransitMode() == TraverseMode.CAR && !req.enterStationsWithCar) {
+            if (req.kissAndRide && !s0.isCarParked()) {
+                s1.setCarParked(true);
+            } else if (req.useTransportationNetworkCompany && s0.isUsingHailedCar()) {
+                // check to see if transit may be used after using hailed car
+                if (s0.isTNCStopAllowed()) {
+                    s1.alightHailedCar();
+                } else {
+                    // haven't gone far enough to warrant a ride, do not proceed
+                    return null;
+                }
+            } else {
+                // above conditions not satisfied or the request is a Park & Ride or regular driving without transit.
+                // Return null to avoid transition
+                return null;
+            }
+        }
+
         if (req.allowVehicleRental && s0.isVehicleRenting()) {
             // check to see if transit may be used after transitioning out of a vehicle rental
             if (req.arriveBy) {
@@ -123,23 +149,6 @@ public class StreetTransitLink extends Edge {
                 }
             }
         }
-
-        /* Determine if transit should be boarded if currently traveling in a car */
-        /* Note that in arriveBy searches this is double-traversing link edges to fork the state into both WALK and CAR mode. This is an insane hack. */
-        if (s0.getNonTransitMode() == TraverseMode.CAR && !req.enterStationsWithCar) {
-            if (req.kissAndRide && !s0.isCarParked()) {
-                s1.setCarParked(true);
-            } else if (req.useTransportationNetworkCompany && s0.isUsingHailedCar()) {
-                // check to see if the last state has conditions that allow alighting a hailed car
-                if (s0.isTNCStopAllowed()) {
-                    s1.alightHailedCar();
-                } else {
-                    return null;
-                }
-            } else {
-                return null;
-            }
-        }
         s1.incrementTimeInSeconds(transitStop.getStreetToStopTime() + STL_TRAVERSE_COST);
         s1.incrementWeight(STL_TRAVERSE_COST + transitStop.getStreetToStopTime());
         s1.setBackMode(TraverseMode.LEG_SWITCH);
@@ -152,7 +161,7 @@ public class StreetTransitLink extends Edge {
         s1.setBackMode(TraverseMode.LEG_SWITCH);
         return s1.makeState();
     }
-    
+
     // anecdotally, the lower bound search is about 2x faster when you don't reach stops
     // and therefore don't even consider boarding
     @Override

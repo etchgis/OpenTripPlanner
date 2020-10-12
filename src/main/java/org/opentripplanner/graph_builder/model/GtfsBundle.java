@@ -64,6 +64,8 @@ public class GtfsBundle {
         this.setPath(gtfsFile);
     }
 
+    public File getPath() { return path; }
+
     public void setPath(File path) {
         this.path = path;
     }

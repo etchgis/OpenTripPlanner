@@ -8,7 +8,6 @@ import org.opentripplanner.routing.edgetype.StreetTransitLink;
 import org.opentripplanner.routing.graph.Edge;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.graph.Vertex;
-import org.opentripplanner.routing.impl.DefaultStreetVertexIndexFactory;
 import org.opentripplanner.routing.services.StreetVertexIndexService;
 import org.opentripplanner.routing.vertextype.TransitStop;
 import org.opentripplanner.routing.vertextype.TransitStopStreetVertex;
@@ -18,7 +17,6 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -50,12 +48,13 @@ public class TransitToTaggedStopsModule implements GraphBuilderModule {
     }
 
     @Override
-    public void buildGraph(Graph graph, HashMap<Class<?>, Object> extra) {
+    public void buildGraph(Graph graph, GraphBuilderModuleSummary graphBuilderModuleSummary) {
         LOG.info("Linking transit stops to tagged bus stops...");
 
-        if (graph.streetIndex == null) {
-            graph.index(new DefaultStreetVertexIndexFactory());
-        }
+        // Make sure the graph index has been initialized. Don't recalculate the street index because it should
+        // already have been initialized in a previous build module and should have all needed vertex data for
+        // spatially querying vertices.
+        graph.index(false);
         index = graph.streetIndex;
 
         // iterate over a copy of vertex list because it will be modified

@@ -69,7 +69,7 @@ public class RoutingContext implements Cloneable {
 
     // target means "where this search will terminate" not "the end of the trip from the user's perspective"
     public final Vertex target;
-    
+
     // The back edge associated with the origin - i.e. continuing a previous search.
     // NOTE: not final so that it can be modified post-construction for testing.
     // TODO(flamholz): figure out a better way.
@@ -179,16 +179,16 @@ public class RoutingContext implements Cloneable {
      * Creates a PartialStreetEdge along the input StreetEdge iff its direction makes this possible.
      */
     private void makePartialEdgeAlong(StreetEdge streetEdge, TemporaryStreetLocation from,
-                                      TemporaryStreetLocation to) {
+        TemporaryStreetLocation to) {
         LineString parent = streetEdge.getGeometry();
         LineString head = GeometryUtils.getInteriorSegment(parent,
-                streetEdge.getFromVertex().getCoordinate(), from.getCoordinate());
+            streetEdge.getFromVertex().getCoordinate(), from.getCoordinate());
         LineString tail = GeometryUtils.getInteriorSegment(parent,
-                to.getCoordinate(), streetEdge.getToVertex().getCoordinate());
+            to.getCoordinate(), streetEdge.getToVertex().getCoordinate());
 
         if (parent.getLength() > head.getLength() + tail.getLength()) {
             LineString partial = GeometryUtils.getInteriorSegment(parent,
-                    from.getCoordinate(), to.getCoordinate());
+                from.getCoordinate(), to.getCoordinate());
 
             double lengthRatio = partial.getLength() / parent.getLength();
             double length = streetEdge.getDistance() * lengthRatio;
@@ -201,14 +201,14 @@ public class RoutingContext implements Cloneable {
 
     /**
      * Flexible constructor which may compute to/from vertices.
-     * 
+     *
      * TODO(flamholz): delete this flexible constructor and move the logic to constructors above appropriately.
-     * 
+     *
      * @param findPlaces if true, compute origin and target from RoutingRequest using spatial indices.
      * @param temporaryVerticesParam if not null, use this collection to keep track of temporary vertices.
      */
     private RoutingContext(RoutingRequest routingRequest, Graph graph, Vertex from, Vertex to,
-            boolean findPlaces, Collection<Vertex> temporaryVerticesParam) {
+        boolean findPlaces, Collection<Vertex> temporaryVerticesParam) {
         if (graph == null) {
             throw new GraphNotFoundException();
         }
@@ -290,11 +290,11 @@ public class RoutingContext implements Cloneable {
         // TODO(flamholz): seems like this might be the wrong place for this code? Can't find a better one.
         //
         if (fromVertex instanceof TemporaryStreetLocation &&
-                toVertex instanceof TemporaryStreetLocation) {
+            toVertex instanceof TemporaryStreetLocation) {
             TemporaryStreetLocation fromStreetVertex = (TemporaryStreetLocation) fromVertex;
             TemporaryStreetLocation toStreetVertex = (TemporaryStreetLocation) toVertex;
             Set<StreetEdge> overlap = overlappingStreetEdges(fromStreetVertex,
-                    toStreetVertex);
+                toStreetVertex);
 
             for (StreetEdge pse : overlap) {
                 makePartialEdgeAlong(pse, fromStreetVertex, toStreetVertex);
@@ -374,7 +374,7 @@ public class RoutingContext implements Cloneable {
         final ServiceDate serviceDate = new ServiceDate(c);
         this.serviceDays = new ArrayList<ServiceDay>(3);
         if (calendarService == null && graph.getCalendarService() != null
-                && (opt.modes == null || opt.modes.contains(TraverseMode.TRANSIT))) {
+            && (opt.modes == null || opt.modes.contains(TraverseMode.TRANSIT))) {
             LOG.warn("RoutingContext has no CalendarService. Transit will never be boarded.");
             return;
         }
@@ -391,8 +391,8 @@ public class RoutingContext implements Cloneable {
             // Add one day previous (previous in the direction of the transit search, so yesterday if
             // arriveBy=false and tomorrow if arriveBy=true
             addIfNotExists(this.serviceDays, new ServiceDay(graph,
-                    opt.arriveBy ? serviceDate.next() : serviceDate.previous(),
-                    calendarService, timeZone));
+                opt.arriveBy ? serviceDate.next() : serviceDate.previous(),
+                calendarService, timeZone));
             // Add one or more days in the "forward" direction
             ServiceDate sd = serviceDate;
             int lookout = Math.max(1, opt.serviceDayLookout);
@@ -436,7 +436,7 @@ public class RoutingContext implements Cloneable {
      * for garbage collection.
      */
     public void destroy() {
-       TemporaryVertex.disposeAll(temporaryVertices);
-       temporaryVertices.clear();
+        TemporaryVertex.disposeAll(temporaryVertices);
+        temporaryVertices.clear();
     }
 }

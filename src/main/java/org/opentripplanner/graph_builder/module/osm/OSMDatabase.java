@@ -186,8 +186,8 @@ public class OSMDatabase implements OpenStreetMapContentHandler {
 
         nodesById.put(node.getId(), node);
 
-        if (nodesById.size() % 100000 == 0)
-            LOG.debug("nodes=" + nodesById.size());
+        if (nodesById.size() % 1000000 == 0)
+            LOG.info("Read {} nodes from OSM file.", nodesById.size());
     }
 
     @Override
@@ -226,8 +226,8 @@ public class OSMDatabase implements OpenStreetMapContentHandler {
 
         waysById.put(wayId, way);
 
-        if (waysById.size() % 10000 == 0)
-            LOG.debug("ways=" + waysById.size());
+        if (waysById.size() % 100000 == 0)
+            LOG.info("Read {} routeable ways from OSM file.", waysById.size());
     }
 
     @Override
@@ -260,8 +260,8 @@ public class OSMDatabase implements OpenStreetMapContentHandler {
 
         relationsById.put(relation.getId(), relation);
 
-        if (relationsById.size() % 100 == 0)
-            LOG.debug("relations=" + relationsById.size());
+        if (relationsById.size() % 1000 == 0)
+            LOG.info("Read {} relations from OSM file.", relationsById.size());
     }
 
     @Override
@@ -688,7 +688,7 @@ public class OSMDatabase implements OpenStreetMapContentHandler {
      */
     private void newArea(Area area) {
         StreetTraversalPermission permissions = OSMFilter.getPermissionsForEntity(area.parent,
-                StreetTraversalPermission.PEDESTRIAN_AND_BICYCLE);
+                StreetTraversalPermission.PEDESTRIAN_AND_BICYCLE_AND_MICROMOBILITY);
         if (OSMFilter.isOsmEntityRoutable(area.parent)
                 && permissions != StreetTraversalPermission.NONE) {
             walkableAreas.add(area);
@@ -744,7 +744,7 @@ public class OSMDatabase implements OpenStreetMapContentHandler {
             return;
         }
 
-        TraverseModeSet modes = new TraverseModeSet(TraverseMode.BICYCLE, TraverseMode.CAR);
+        TraverseModeSet modes = new TraverseModeSet(TraverseMode.BICYCLE, TraverseMode.CAR, TraverseMode.MICROMOBILITY);
         String exceptModes = relation.getTag("except");
         if (exceptModes != null) {
             for (String m : exceptModes.split(";")) {
@@ -752,6 +752,7 @@ public class OSMDatabase implements OpenStreetMapContentHandler {
                     modes.setCar(false);
                 } else if (m.equals("bicycle")) {
                     modes.setBicycle(false);
+                    modes.setMicromobility(false);
                     LOG.debug(addBuilderAnnotation(new TurnRestrictionException(via, from)));
                 }
             }

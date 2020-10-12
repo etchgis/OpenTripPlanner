@@ -1,13 +1,11 @@
 package org.opentripplanner.graph_builder.module;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 
 import org.opentripplanner.graph_builder.linking.StreetSplitter;
 import org.opentripplanner.graph_builder.services.GraphBuilderModule;
 import org.opentripplanner.routing.graph.Graph;
-import org.opentripplanner.routing.impl.DefaultStreetVertexIndexFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,12 +40,13 @@ public class StreetLinkerModule implements GraphBuilderModule {
     }
 
     @Override
-    public void buildGraph(Graph graph, HashMap<Class<?>, Object> extra) {
+    public void buildGraph(Graph graph, GraphBuilderModuleSummary graphBuilderModuleSummary) {
         if(graph.hasStreets) {
             LOG.info("Linking transit stops, bike rental stations, bike parking areas, and park-and-rides to graph . . .");
-            if (graph.streetIndex == null) {
-                graph.index(new DefaultStreetVertexIndexFactory());
-            }
+            // Make sure the graph index has been initialized. Don't recalculate the street index because it should
+            // already have been initialized in a previous build module and should have all needed street data for
+            // splitting StreetEdges.
+            graph.index(false);
             StreetSplitter linker = graph.streetIndex.getStreetSplitter();
             linker.setAddExtraEdgesToAreas(this.addExtraEdgesToAreas);
             linker.linkAllStationsToGraph();

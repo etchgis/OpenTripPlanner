@@ -4,6 +4,7 @@ import junit.framework.TestCase;
 import org.junit.Before;
 import org.junit.Test;
 import org.opentripplanner.common.model.P2;
+import org.opentripplanner.graph_builder.module.GraphBuilderModuleSummary;
 import org.opentripplanner.openstreetmap.impl.FileBasedOpenStreetMapProviderImpl;
 import org.opentripplanner.openstreetmap.model.OSMWay;
 import org.opentripplanner.openstreetmap.model.OSMWithTags;
@@ -34,13 +35,6 @@ import java.util.Set;
 
 public class TestOpenStreetMapGraphBuilder extends TestCase {
 
-    private HashMap<Class<?>, Object> extra;
-    
-    @Before
-    public void setUp() {
-        extra = new HashMap<Class<?>, Object>();
-    }
-
     @Test
     public void testGraphBuilder() throws Exception {
 
@@ -55,7 +49,7 @@ public class TestOpenStreetMapGraphBuilder extends TestCase {
         provider.setPath(file);
         loader.setProvider(provider);
 
-        loader.buildGraph(gg, extra);
+        loader.buildGraph(gg, new GraphBuilderModuleSummary(loader));
 
         // Kamiennogorska at south end of segment
         Vertex v1 = gg.getVertex("osm:node:280592578");
@@ -113,7 +107,7 @@ public class TestOpenStreetMapGraphBuilder extends TestCase {
         provider.setPath(file);
         loader.setProvider(provider);
 
-        loader.buildGraph(gg, extra);
+        loader.buildGraph(gg, new GraphBuilderModuleSummary(loader));
         
         // These vertices are labeled in the OSM file as having traffic lights.
         IntersectionVertex iv1 = (IntersectionVertex) gg.getVertex("osm:node:1919595918");
@@ -170,7 +164,7 @@ public class TestOpenStreetMapGraphBuilder extends TestCase {
         provider.setPath(file);
         loader.setProvider(provider);
 
-        loader.buildGraph(gg, extra);
+        loader.buildGraph(gg, new GraphBuilderModuleSummary(loader));
 
         OTPServer otpServer = new OTPServer(new CommandLineParameters(), new GraphService());
         otpServer.getGraphService().registerGraph("A", new MemoryGraphSource("A", gg));
@@ -215,6 +209,7 @@ public class TestOpenStreetMapGraphBuilder extends TestCase {
         way.addTag("surface", "gravel");
 
         WayPropertySet wayPropertySet = new WayPropertySet();
+        wayPropertySet.index();
 
         // where there are no way specifiers, the default is used
         assertEquals(wayPropertySet.getDataForWay(way), wayPropertySet.defaultProperties);
@@ -236,6 +231,7 @@ public class TestOpenStreetMapGraphBuilder extends TestCase {
         footways_allow_peds.setPermission(StreetTraversalPermission.PEDESTRIAN);
 
         wayPropertySet.addProperties(footway_only, footways_allow_peds);
+        wayPropertySet.index();
 
         WayProperties dataForWay = wayPropertySet.getDataForWay(way);
         // the first one is found
@@ -251,6 +247,8 @@ public class TestOpenStreetMapGraphBuilder extends TestCase {
         safer_and_peds.setPermission(StreetTraversalPermission.PEDESTRIAN);
 
         wayPropertySet.addProperties(lane_and_footway, safer_and_peds);
+        wayPropertySet.index();
+
         dataForWay = wayPropertySet.getDataForWay(way);
         assertEquals(dataForWay, safer_and_peds);
 
@@ -259,6 +257,7 @@ public class TestOpenStreetMapGraphBuilder extends TestCase {
         WayProperties gravel_is_dangerous = new WayProperties();
         gravel_is_dangerous.setSafetyFeatures(new P2<Double>(2.0, 2.0));
         wayPropertySet.addProperties(gravel, gravel_is_dangerous, true);
+        wayPropertySet.index();
 
         dataForWay = wayPropertySet.getDataForWay(way);
         assertEquals(dataForWay.getSafetyFeatures().first, 1.5);
@@ -274,9 +273,17 @@ public class TestOpenStreetMapGraphBuilder extends TestCase {
         track_is_safest.setSafetyFeatures(new P2<Double>(0.25, 0.25));
 
         wayPropertySet.addProperties(track_only, track_is_safest);
+        wayPropertySet.index();
+
         dataForWay = wayPropertySet.getDataForWay(way);
         assertEquals(0.25, dataForWay.getSafetyFeatures().first); // right (with traffic) comes
                                                                        // from track
+        assertEquals(0.75, dataForWay.getSafetyFeatures().second); // left comes from lane
+
+        // make sure the way property cache has been set with proper values along the way
+        dataForWay = wayPropertySet.getWayPropertyLookup().get("cycleway:right=track;cycleway=lane;highway=footway");
+        assertEquals(0.25, dataForWay.getSafetyFeatures().first); // right (with traffic) comes
+        // from track
         assertEquals(0.75, dataForWay.getSafetyFeatures().second); // left comes from lane
 
         way = new OSMWay();
@@ -325,7 +332,7 @@ public class TestOpenStreetMapGraphBuilder extends TestCase {
     // pr.setPath(new File(getClass().getResource("otp-multipolygon-test.osm").getPath()));
     // loader.setProvider(pr);
     //
-    // loader.buildGraph(gg, extra);
+    // loader.buildGraph(gg, new GraphBuilderModuleSummary(loader));
     //
     // assertNotNull(gg.getVertex("way -3535 from 4"));
     // }

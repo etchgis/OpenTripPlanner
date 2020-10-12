@@ -1,10 +1,6 @@
 package org.opentripplanner.routing.algorithm;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-
+import com.beust.jcommander.internal.Lists;
 import org.opentripplanner.common.pqueue.BinHeap;
 import org.opentripplanner.routing.algorithm.strategies.RemainingWeightHeuristic;
 import org.opentripplanner.routing.algorithm.strategies.SearchTerminationStrategy;
@@ -14,14 +10,18 @@ import org.opentripplanner.routing.core.RoutingRequest;
 import org.opentripplanner.routing.core.State;
 import org.opentripplanner.routing.graph.Edge;
 import org.opentripplanner.routing.graph.Vertex;
-import org.opentripplanner.routing.spt.*;
+import org.opentripplanner.routing.spt.GraphPath;
+import org.opentripplanner.routing.spt.ShortestPathTree;
 import org.opentripplanner.util.DateUtils;
 import org.opentripplanner.util.monitoring.MonitoringStore;
 import org.opentripplanner.util.monitoring.MonitoringStoreFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.beust.jcommander.internal.Lists;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Find the shortest path between graph vertices using A*.
@@ -346,17 +346,20 @@ public class AStar {
         this.traverseVisitor = traverseVisitor;
     }
 
+    /**
+     * Get a list of final shortest path states that satisfy all criteria for the path search.
+     */
     public List<GraphPath> getPathsToTarget() {
         if (runState == null) {
             return Collections.emptyList();
         }
 
-        List<GraphPath> ret = new LinkedList<>();
-        for (State s : runState.targetAcceptedStates) {
-            if (s.isFinal()) {
-                ret.add(new GraphPath(s, true));
+        List<GraphPath> acceptedPaths = new LinkedList<>();
+        for (State targetAcceptedState : runState.targetAcceptedStates) {
+            if (targetAcceptedState.isFinal()) {
+                acceptedPaths.add(new GraphPath(targetAcceptedState, true));
             }
         }
-        return ret;
+        return acceptedPaths;
     }
 }

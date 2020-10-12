@@ -18,8 +18,8 @@ public class SlopeCosts {
      * percentage to the 'flat' distance and get 1190m.
      */
     public final double effectiveWalkFactor;
-    
-    SlopeCosts(double slopeSpeedFactor, double slopeWorkFactor, double slopeSafetyCost,
+
+    public SlopeCosts(double slopeSpeedFactor, double slopeWorkFactor, double slopeSafetyCost,
                       double maxSlope, double lengthMultiplier, boolean flattened, double effectiveWalkFactor,
                       byte[] gradients, short[] gradientLengths, double maximumDragResistiveForceComponent) {
         this.slopeSpeedFactor = slopeSpeedFactor;
@@ -28,9 +28,9 @@ public class SlopeCosts {
         this.maxSlope = maxSlope;
         this.lengthMultiplier = lengthMultiplier;
         this.flattened = flattened;
-        this.effectiveWalkFactor = effectiveWalkFactor;
         this.gradients = gradients;
         this.gradientLengths = gradientLengths;
         this.maximumDragResistiveForceComponent = maximumDragResistiveForceComponent;
+        this.effectiveWalkFactor = effectiveWalkFactor;
     }
 }

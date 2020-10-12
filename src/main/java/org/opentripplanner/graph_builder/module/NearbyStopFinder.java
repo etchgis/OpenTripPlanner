@@ -20,7 +20,6 @@ import org.opentripplanner.routing.edgetype.TripPattern;
 import org.opentripplanner.routing.graph.Edge;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.graph.Vertex;
-import org.opentripplanner.routing.impl.DefaultStreetVertexIndexFactory;
 import org.opentripplanner.routing.services.StreetVertexIndexService;
 import org.opentripplanner.routing.spt.GraphPath;
 import org.opentripplanner.routing.spt.ShortestPathTree;
@@ -68,9 +67,6 @@ public class NearbyStopFinder {
             // but we don't have much of a choice here. Use the default walking speed to convert.
             earliestArrivalSearch.maxDuration = (int) (radiusMeters / new RoutingRequest().walkSpeed);
         } else {
-            if (graph.streetIndex == null) {
-                graph.index(new DefaultStreetVertexIndexFactory());
-            }
             streetIndex = graph.streetIndex;
         }
     }
@@ -95,7 +91,20 @@ public class NearbyStopFinder {
             if (!ts1.isStreetLinkable()) continue;
             /* Consider this destination stop as a candidate for every trip pattern passing through it. */
             for (TripPattern pattern : graph.index.patternsForStop.get(ts1.getStop())) {
-                closestStopForPattern.putMin(pattern, stopAtDistance);
+                // In certain GTFS feeds, there can be stops where all stop times do not allow boardings and therefore
+                // should not be considered as candidates for creating transfer edges. Therefore, only add a stop for a
+                // pattern if at least one of the stop times associated with the pattern allows boarding at this stop.
+                // Otherwise, there will be issues with certain GTFS feeds where some trips end at an alight-only stop
+                // and then other trips begin at the alight-only stop, but do not allow boarding there.
+                //
+                // TripPatterns are created based off of StopPatterns which differentiate between stop sequences with
+                // the same stops, but different boarding and alighting values. Therefore, this check applies to all
+                // possible stop pattern combinations.
+                //
+                // See this issue for further info: https://github.com/opentripplanner/OpenTripPlanner/issues/3026
+                if (pattern.canBoard(pattern.getStops().indexOf(ts1.getStop()))) {
+                    closestStopForPattern.putMin(pattern, stopAtDistance);
+                }
             }
         }
 

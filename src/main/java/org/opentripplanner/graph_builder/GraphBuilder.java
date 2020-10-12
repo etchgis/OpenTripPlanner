@@ -2,14 +2,16 @@ package org.opentripplanner.graph_builder;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.Lists;
+import org.opentripplanner.common.walk.WalkComfortCalculator;
 import org.opentripplanner.graph_builder.model.GtfsBundle;
 import org.opentripplanner.graph_builder.module.DirectTransferGenerator;
 import org.opentripplanner.graph_builder.module.EmbedConfig;
+import org.opentripplanner.graph_builder.module.GraphBuilderModuleSummary;
 import org.opentripplanner.graph_builder.module.GtfsModule;
 import org.opentripplanner.graph_builder.module.PruneFloatingIslands;
 import org.opentripplanner.graph_builder.module.StreetLinkerModule;
 import org.opentripplanner.graph_builder.module.TransitToTaggedStopsModule;
-import org.opentripplanner.graph_builder.module.map.BusRouteStreetMatcher;
+//import org.opentripplanner.graph_builder.module.map.BusRouteStreetMatcher;
 import org.opentripplanner.graph_builder.module.ned.DegreeGridNEDTileSource;
 import org.opentripplanner.graph_builder.module.ned.ElevationModule;
 import org.opentripplanner.graph_builder.module.ned.GeotiffGridCoverageFactoryImpl;
@@ -44,7 +46,7 @@ import java.util.zip.ZipFile;
  * It is modular: GraphBuilderModules are placed in a list and run in sequence.
  */
 public class GraphBuilder implements Runnable {
-    
+
     private static Logger LOG = LoggerFactory.getLogger(GraphBuilder.class);
 
     public static final String BUILDER_CONFIG_FILENAME = "build-config.json";
@@ -52,13 +54,13 @@ public class GraphBuilder implements Runnable {
     private List<GraphBuilderModule> _graphBuilderModules = new ArrayList<GraphBuilderModule>();
 
     private final File graphFile;
-    
+
     private boolean _alwaysRebuild = true;
 
     private List<RoutingRequest> modeList;
-    
+
     private String baseGraph = null;
-    
+
     private Graph graph = new Graph();
 
     /** Should the graph be serialized to disk after being created or not? */
@@ -80,7 +82,7 @@ public class GraphBuilder implements Runnable {
     public void setAlwaysRebuild(boolean alwaysRebuild) {
         _alwaysRebuild = alwaysRebuild;
     }
-    
+
     public void setBaseGraph(String baseGraph) {
         this.baseGraph = baseGraph;
         try {
@@ -97,7 +99,7 @@ public class GraphBuilder implements Runnable {
     public void setModes(List<RoutingRequest> modeList) {
         this.modeList = modeList;
     }
-    
+
     public Graph getGraph() {
         return this.graph;
     }
@@ -107,7 +109,7 @@ public class GraphBuilder implements Runnable {
         long startTime = System.currentTimeMillis();
 
         if (serializeGraph) {
-        	
+
             if (graphFile == null) {
                 throw new RuntimeException("graphBuilderTask has no attribute graphFile.");
             }
@@ -116,7 +118,7 @@ public class GraphBuilder implements Runnable {
                 LOG.info("graph already exists and alwaysRebuild=false => skipping graph build");
                 return;
             }
-        	
+
             try {
                 if (!graphFile.getParentFile().exists()) {
                     if (!graphFile.getParentFile().mkdirs()) {
@@ -133,10 +135,14 @@ public class GraphBuilder implements Runnable {
         for (GraphBuilderModule builder : _graphBuilderModules) {
             builder.checkInputs();
         }
-        
-        HashMap<Class<?>, Object> extra = new HashMap<Class<?>, Object>();
-        for (GraphBuilderModule load : _graphBuilderModules)
-            load.buildGraph(graph, extra);
+
+        for (GraphBuilderModule module : _graphBuilderModules) {
+            GraphBuilderModuleSummary moduleSummary = new GraphBuilderModuleSummary(module);
+            LOG.info(moduleSummary.start());
+            module.buildGraph(graph, moduleSummary);
+            LOG.info(moduleSummary.finish());
+            graph.addGraphBuilderSummary(moduleSummary);
+        }
 
         graph.summarizeBuilderAnnotations();
         if (serializeGraph) {
@@ -173,6 +179,7 @@ public class GraphBuilder implements Runnable {
             LOG.error("'{}' is not a readable directory.", dir);
             return null;
         }
+
         // Find and parse config files first to reveal syntax errors early without waiting for graph build.
         builderConfig = OTPMain.loadJson(new File(dir, BUILDER_CONFIG_FILENAME));
         GraphBuilderParameters builderParams = new GraphBuilderParameters(builderConfig);
@@ -185,24 +192,24 @@ public class GraphBuilder implements Runnable {
 
         for (File file : dir.listFiles()) {
             switch (InputFileType.forFile(file)) {
-                case GTFS:
-                    LOG.info("Found GTFS file {}", file);
-                    gtfsFiles.add(file);
-                    break;
-                case OSM:
-                    LOG.info("Found OSM file {}", file);
-                    osmFiles.add(file);
-                    break;
-                case DEM:
-                    if (!builderParams.fetchElevationUS && demFile == null) {
-                        LOG.info("Found DEM file {}", file);
-                        demFile = file;
-                    } else {
-                        LOG.info("Skipping DEM file {}", file);
-                    }
-                    break;
-                case OTHER:
-                    LOG.warn("Skipping unrecognized file '{}'", file);
+            case GTFS:
+                LOG.info("Found GTFS file {}", file);
+                gtfsFiles.add(file);
+                break;
+            case OSM:
+                LOG.info("Found OSM file {}", file);
+                osmFiles.add(file);
+                break;
+            case DEM:
+                if (!builderParams.fetchElevationUS && demFile == null) {
+                    LOG.info("Found DEM file {}", file);
+                    demFile = file;
+                } else {
+                    LOG.info("Skipping DEM file {}", file);
+                }
+                break;
+            case OTHER:
+                LOG.warn("Skipping unrecognized file '{}'", file);
             }
         }
         boolean hasOSM  = builderParams.streets && !osmFiles.isEmpty();
@@ -230,6 +237,8 @@ public class GraphBuilder implements Runnable {
             osmModule.staticParkAndRide = builderParams.staticParkAndRide;
             osmModule.banDiscouragedWalking = builderParams.banDiscouragedWalking;
             osmModule.banDiscouragedBiking = builderParams.banDiscouragedBiking;
+            osmModule.walkConfig = OTPMain.loadJson(new File(dir, WalkComfortCalculator.WALK_CONFIG_FILENAME));
+            osmModule.includeOsmTags = builderParams.includeOsmTags;
             osmModule.loadMicromobilityTravelRestrictions(builderParams);
             graphBuilder.addModule(osmModule);
             PruneFloatingIslands pruneFloatingIslands = new PruneFloatingIslands();
@@ -254,9 +263,10 @@ public class GraphBuilder implements Runnable {
             gtfsModule.setFareServiceFactory(builderParams.fareServiceFactory);
             graphBuilder.addModule(gtfsModule);
             if ( hasOSM ) {
-                if (builderParams.matchBusRoutesToStreets) {
-                    graphBuilder.addModule(new BusRouteStreetMatcher());
-                }
+                // Commented out by Jon 10/10/2020. not currently used
+                //if (builderParams.matchBusRoutesToStreets) {
+                //    graphBuilder.addModule(new BusRouteStreetMatcher());
+                //}
                 graphBuilder.addModule(new TransitToTaggedStopsModule());
             }
         }
@@ -267,30 +277,36 @@ public class GraphBuilder implements Runnable {
         graphBuilder.addModule(streetLinkerModule);
         // Load elevation data and apply it to the streets.
         // We want to do run this module after loading the OSM street network but before finding transfers.
+        ElevationGridCoverageFactory gcf = null;
         if (builderParams.elevationBucket != null) {
             // Download the elevation tiles from an Amazon S3 bucket
             S3BucketConfig bucketConfig = builderParams.elevationBucket;
             File cacheDirectory = new File(params.cacheDirectory, "ned");
             DegreeGridNEDTileSource awsTileSource = new DegreeGridNEDTileSource();
-            awsTileSource = new DegreeGridNEDTileSource();
             awsTileSource.awsAccessKey = bucketConfig.accessKey;
             awsTileSource.awsSecretKey = bucketConfig.secretKey;
             awsTileSource.awsBucketName = bucketConfig.bucketName;
-            NEDGridCoverageFactoryImpl gcf = new NEDGridCoverageFactoryImpl(cacheDirectory);
-            gcf.tileSource = awsTileSource;
-            GraphBuilderModule elevationBuilder = new ElevationModule(gcf, builderParams.elevationUnitMultiplier);
-            graphBuilder.addModule(elevationBuilder);
+            gcf = new NEDGridCoverageFactoryImpl(cacheDirectory, awsTileSource);
         } else if (builderParams.fetchElevationUS) {
             // Download the elevation tiles from the official web service
             File cacheDirectory = new File(params.cacheDirectory, "ned");
-            ElevationGridCoverageFactory gcf = new NEDGridCoverageFactoryImpl(cacheDirectory);
-            GraphBuilderModule elevationBuilder = new ElevationModule(gcf, builderParams.elevationUnitMultiplier);
-            graphBuilder.addModule(elevationBuilder);
+            gcf = new NEDGridCoverageFactoryImpl(cacheDirectory);
         } else if (demFile != null) {
             // Load the elevation from a file in the graph inputs directory
-            ElevationGridCoverageFactory gcf = new GeotiffGridCoverageFactoryImpl(demFile);
-            GraphBuilderModule elevationBuilder = new ElevationModule(gcf, builderParams.elevationUnitMultiplier);
-            graphBuilder.addModule(elevationBuilder);
+            gcf = new GeotiffGridCoverageFactoryImpl(demFile);
+        }
+        if (gcf != null) {
+            graphBuilder.addModule(
+                new ElevationModule(
+                    gcf,
+                    params.cacheDirectory,
+                    builderParams.readCachedElevations,
+                    builderParams.writeCachedElevations,
+                    builderParams.includeEllipsoidToGeoidDifference,
+                    builderParams.multiThreadElevationCalculations,
+                    builderParams.elevationUnitMultiplier
+                )
+            );
         }
         if ( hasGTFS ) {
             // The stops can be linked to each other once they are already linked to the street network.

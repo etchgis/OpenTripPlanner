@@ -722,7 +722,7 @@ otp.widgets.ItinerariesWidget =
 
             return legDiv;
         }
-        else if (leg.steps) { // walk / bike/ car / micromobility
+        else if (leg.steps) { // walk / bike / car / micromobility
             var legDiv = $('<div></div>');
             if (leg && leg.steps) {
                 for(var i=0; i<leg.steps.length; i++) {

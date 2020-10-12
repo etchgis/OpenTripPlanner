@@ -55,8 +55,13 @@ otp.modules.fieldtrip.FieldTripRequestWidget =
         if(this.request.leaveDestinationTime) context.leaveDestinationTime = moment(this.request.leaveDestinationTime).format(otp.config.timeFormat);
         if(this.request.arriveSchoolTime) context.arriveSchoolTime = moment(this.request.arriveSchoolTime).format(otp.config.timeFormat);
 
-        if(this.request.paymentPreference === "own_tickets") context.paymentPreference = "Will use own tickets";
-        else if(this.request.paymentPreference === "request_call") context.paymentPreference = "Call requested at provided phone number";
+        if(this.request.ticketType === "own_tickets") context.ticketType = "Will use own tickets";
+        else if(this.request.ticketType === "hop_new") context.ticketType = "Will purchase new Hop Card";
+        else if(this.request.ticketType === "hop_reload") context.ticketType = "Will reload existing Hop Card";
+
+        context.paymentPreference = "N/A";
+        if(this.request.paymentPreference === "request_call") context.paymentPreference = "Call requested at provided phone number";
+        else if(this.request.paymentPreference === "phone_cc") context.paymentPreference = "Will call in credit card info to TriMet";
         else if(this.request.paymentPreference === "fax_cc") context.paymentPreference = "Will fax credit card info to TriMet";
         else if(this.request.paymentPreference === "mail_check") context.paymentPreference = "Will mail check to TriMet";
 
@@ -71,6 +76,10 @@ otp.modules.fieldtrip.FieldTripRequestWidget =
             if(context.notes[i].type === "internal") context.internalNotes.push(context.notes[i]);
             else if(context.notes[i].type === "operational") context.operationalNotes.push(context.notes[i]);
         }
+
+        // Populate number paid & free students
+        if(!context.numFreeStudents) context.numFreeStudents = 0
+        context.numPaidStudents = context.numStudents - context.numFreeStudents
 
         if(this.content) this.content.remove();
         this.content = ich['otp-fieldtrip-request'](context).appendTo(this.mainDiv);
@@ -144,7 +153,10 @@ otp.modules.fieldtrip.FieldTripRequestWidget =
             if(outboundTrip) context.outboundItineraries = outboundTrip.groupItineraries;
             if(inboundTrip) context.inboundItineraries = inboundTrip.groupItineraries;
 
-            console.log(context);
+            // Populate number paid & free students
+            if(!context.numFreeStudents) context.numFreeStudents = 0
+            context.numPaidStudents = context.numStudents - context.numFreeStudents
+
             var content = ich['otp-fieldtrip-printablePlan'](context);
 
             // populate itin details
@@ -153,7 +165,7 @@ otp.modules.fieldtrip.FieldTripRequestWidget =
                 for(var i = 0; i < itins.length; i++) {
                     var itinData = otp.util.FieldTrip.readItinData(itins[i]);
                     var itin = new otp.modules.planner.Itinerary(itinData, null);
-                    if(req.classpassId) itin.fareDisplayOverride = '(Class Pass: #' + req.classpassId + ')';
+                    if(req.classpassId) itin.fareDisplayOverride = '(Class Pass Hop Card # ' + req.classpassId + ')';
                     content.find('.outbound-itinBody-'+i).html(itin.getHtmlNarrative());
                 }
             }
@@ -163,7 +175,7 @@ otp.modules.fieldtrip.FieldTripRequestWidget =
                 for(var i = 0; i < itins.length; i++) {
                     var itinData = otp.util.FieldTrip.readItinData(itins[i]);
                     var itin = new otp.modules.planner.Itinerary(itinData, null);
-                    if(req.classpassId) itin.fareDisplayOverride = '(Class Pass: #' + req.classpassId + ')';
+                    if(req.classpassId) itin.fareDisplayOverride = '(Class Pass Hop Card # ' + req.classpassId + ')';
                     content.find('.inbound-itinBody-'+i).html(itin.getHtmlNarrative());
                 }
             }
@@ -188,10 +200,10 @@ otp.modules.fieldtrip.FieldTripRequestWidget =
                 this_.module.setClasspassId(this_.request, classpassId);
             }
         });
+        this.content.find('.updatePaymentButton').click(function(evt) {
+            this_.showUpdatePaymentDialog();
+        });
         this.content.find('.addNoteButton').click(function(evt) {
-            /*otp.widgets.Dialogs.showInputDialog("Note to be attached to this request:", "Add Note", function(input) {
-                this_.module.addNote(this_.request, input, "internal");
-            });*/
             this_.showNoteDialog();
         });
 
@@ -244,6 +256,42 @@ otp.modules.fieldtrip.FieldTripRequestWidget =
         });
     },
 
+    showUpdatePaymentDialog : function() {
+        var this_ = this;
+
+        var dialog = ich['otp-fieldtrip-paymentDialog']({
+            classpassId: this.request.classpassId,
+            paymentPreference: this.request.paymentPreference,
+            ccName: this.request.ccName,
+            ccType: this.request.ccType,
+            ccLastFour: this.request.ccLastFour,
+            checkNumber: this.request.checkNumber,
+        }).dialog({
+            title : "Update Payment Info",
+            appendTo: 'body',
+            modal: true,
+            zIndex: 100000,
+            height: 400
+        });
+
+        dialog.find(".okButton").button().click(function() {
+            this_.module.setPaymentInfo(this_.request,
+              dialog.find(".classpassId").val(),
+              dialog.find(".paymentPreference").val(),
+              dialog.find(".ccType").val(),
+              dialog.find(".ccName").val(),
+              dialog.find(".ccLastFour").val(),
+              dialog.find(".checkNumber").val()
+            );
+
+            dialog.dialog("close");
+        });
+
+        dialog.find(".cancelButton").button().click(function() {
+            dialog.dialog("close");
+        });
+    },
+
     showTeacherNotesDialog : function() {
         var this_ = this;
 
@@ -273,9 +321,8 @@ otp.modules.fieldtrip.FieldTripRequestWidget =
     showGroupSizeDialog : function() {
         var this_ = this;
         var dialog = ich['otp-fieldtrip-groupSizeDialog']({
-            numStudents : this_.request.numStudents,
-            minimumAge : this_.request.minimumAge,
-            maximumAge : this_.request.maximumAge,
+            numPaidStudents : this_.request.numStudents - (this_.request.numFreeStudents || 0),
+            numFreeStudents : this_.request.numFreeStudents || 0,
             numChaperones : this_.request.numChaperones
         }).dialog({
             title : "Edit Group Size",
@@ -286,11 +333,16 @@ otp.modules.fieldtrip.FieldTripRequestWidget =
         });
 
         dialog.find(".okButton").button().click(function() {
-            var numStudents = dialog.find(".numStudents").val();
-            var numChaperones = dialog.find(".numChaperones").val();
-            var minimumAge = dialog.find(".minimumAge").val();
-            var maximumAge = dialog.find(".maximumAge").val();
-            this_.module.editGroupSize(this_.request, numStudents, numChaperones, minimumAge, maximumAge);
+            var numPaidStudents = parseInt(dialog.find(".numPaidStudents").val());
+            numPaidStudents = isNaN(numPaidStudents) ? 0 : numPaidStudents
+
+            var numFreeStudents = parseInt(dialog.find(".numFreeStudents").val());
+            numFreeStudents = isNaN(numFreeStudents) ? 0 : numFreeStudents
+
+            var numChaperones = parseInt(dialog.find(".numChaperones").val());
+            numChaperones = isNaN(numChaperones) ? 0 : numChaperones
+
+            this_.module.editGroupSize(this_.request, (numPaidStudents + numFreeStudents), numFreeStudents, numChaperones);
             dialog.dialog("close");
         });
 

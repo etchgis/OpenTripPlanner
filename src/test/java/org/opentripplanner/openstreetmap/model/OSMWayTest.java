@@ -1,14 +1,14 @@
 package org.opentripplanner.openstreetmap.model;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
 import org.junit.Test;
 import org.opentripplanner.common.model.P2;
 import org.opentripplanner.graph_builder.module.osm.OSMFilter;
 import org.opentripplanner.graph_builder.module.osm.WayProperties;
 import org.opentripplanner.graph_builder.module.osm.WayPropertySet;
 import org.opentripplanner.routing.edgetype.StreetTraversalPermission;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class OSMWayTest {
 
@@ -278,6 +278,7 @@ public class OSMWayTest {
 
     private P2<StreetTraversalPermission> getWayProperties(OSMWay way) {
         WayPropertySet wayPropertySet = new WayPropertySet();
+        wayPropertySet.index();
         WayProperties wayData = wayPropertySet.getDataForWay(way);
 
         StreetTraversalPermission permissions = OSMFilter.getPermissionsForWay(way,

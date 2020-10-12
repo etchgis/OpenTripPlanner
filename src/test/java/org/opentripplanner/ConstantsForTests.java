@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.net.URLDecoder;
 import java.util.HashMap;
 
+import org.opentripplanner.graph_builder.module.GraphBuilderModuleSummary;
 import org.opentripplanner.model.calendar.CalendarServiceData;
 import org.opentripplanner.graph_builder.module.DirectTransferGenerator;
 import org.opentripplanner.graph_builder.module.StreetLinkerModule;
@@ -16,7 +17,6 @@ import org.opentripplanner.openstreetmap.impl.AnyFileBasedOpenStreetMapProviderI
 import org.opentripplanner.routing.edgetype.factory.PatternHopFactory;
 import org.opentripplanner.routing.edgetype.factory.TransferGraphLinker;
 import org.opentripplanner.routing.graph.Graph;
-import org.opentripplanner.routing.impl.DefaultStreetVertexIndexFactory;
 
 import static org.opentripplanner.calendar.impl.CalendarServiceDataFactoryImpl.createCalendarServiceData;
 
@@ -89,7 +89,7 @@ public class ConstantsForTests {
         }
 
         StreetLinkerModule ttsnm = new StreetLinkerModule();
-        ttsnm.buildGraph(portlandGraph, new HashMap<Class<?>, Object>());
+        ttsnm.buildGraph(portlandGraph, new GraphBuilderModuleSummary(ttsnm));
     }
 
     public Graph getVermontGraph() {
@@ -114,7 +114,7 @@ public class ConstantsForTests {
             provider.setPath(file);
             loader.setProvider(provider);
 
-            loader.buildGraph(g, new HashMap<>());
+            loader.buildGraph(g, new GraphBuilderModuleSummary(loader));
 
             GtfsContext ctx = GtfsLibrary.readGtfs(new File(
                     URLDecoder.decode(this.getClass().getResource(gtfsFile).getFile(),
@@ -127,9 +127,13 @@ public class ConstantsForTests {
             g.updateTransitFeedValidity(csd);
             g.hasTransit = true;
 
-            new DirectTransferGenerator(2000).buildGraph(g, new HashMap<>());
+            DirectTransferGenerator dtg = new DirectTransferGenerator(2000);
+            dtg.buildGraph(g, new GraphBuilderModuleSummary(dtg));
 
-            new StreetLinkerModule().buildGraph(g, new HashMap<>());
+            StreetLinkerModule slm = new StreetLinkerModule();
+            slm.buildGraph(g, new GraphBuilderModuleSummary(slm));
+
+            g.index(true);
 
             return g;
         } catch(Exception ex) {

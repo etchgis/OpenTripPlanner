@@ -369,6 +369,7 @@ otp.modules.planner.PlannerModule =
 
             //queryParams.addTurnByTurn = false;
             //queryParams.bannedVehicles = 'scooter';
+            //queryParams.bannedProviders = 'lime,bird';
 
             if(otp.config.routerId !== undefined) {
                 queryParams.routerId = otp.config.routerId;

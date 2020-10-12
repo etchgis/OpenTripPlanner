@@ -1,16 +1,15 @@
 package org.opentripplanner.routing.util;
 
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateSequence;
 import org.opentripplanner.common.geometry.PackedCoordinateSequence;
 import org.opentripplanner.routing.util.elevation.ToblersHikingFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.CoordinateSequence;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 
 public class ElevationUtils {
     private static Logger log = LoggerFactory.getLogger(ElevationUtils.class);
@@ -22,18 +21,6 @@ public class ElevationUtils {
     private static final double ENERGY_PER_METER_ON_FLAT = 1;
 
     private static final double ENERGY_SLOPE_FACTOR = 4000;
-
-    /**
-     * If the calculated factor is more than this constant, we ignore the calculated factor and use this
-     * constant in stead. See ths table in {@link ToblersHikingFunction} for a mapping between the
-     * factor and angels(degree and percentage). A factor of 3 with take effect for slopes with a
-     * incline above 31.4% and a decline below 41.4%. The worlds steepest road ia about 35%, and the
-     * steepest climes in Tour De France is usually in the range 8-12%. Some walking paths may be quite
-     * steep, but a penalty of 3 is still a large penalty.
-     */
-    private static final double MAX_SLOPE_WALK_EFFECTIVE_LENGTH_FACTOR = 3;
-
-    private static final ToblersHikingFunction toblerWalkingFunction = new ToblersHikingFunction(MAX_SLOPE_WALK_EFFECTIVE_LENGTH_FACTOR);
 
     /**
      * Coefficient for velocity-dependent dynamic rolling resistance, here approximated with 0.1
@@ -181,6 +168,18 @@ public class ElevationUtils {
         );
     }
 
+    /**
+     * If the calculated factor is more than this constant, we ignore the calculated factor and use this
+     * constant in stead. See ths table in {@link ToblersHikingFunction} for a mapping between the
+     * factor and angels(degree and percentage). A factor of 3 with take effect for slopes with a
+     * incline above 31.4% and a decline below 41.4%. The worlds steepest road ia about 35%, and the
+     * steepest climes in Tour De France is usually in the range 8-12%. Some walking paths may be quite
+     * steep, but a penalty of 3 is still a large penalty.
+     */
+    private static final double MAX_SLOPE_WALK_EFFECTIVE_LENGTH_FACTOR = 3;
+
+    private static final ToblersHikingFunction toblerWalkingFunction = new ToblersHikingFunction(MAX_SLOPE_WALK_EFFECTIVE_LENGTH_FACTOR);
+
     private static double[] getLengthsFromElevation(CoordinateSequence elev) {
 
         double trueLength = 0;
@@ -200,7 +199,7 @@ public class ElevationUtils {
     }
 
     /**
-     * 
+     *
      * @param elev The elevation profile, where each (x, y) is (distance along edge, elevation)
      * @param slopeLimit Whether the slope should be limited to 0.35, which is the max slope for
      * streets that take cars.
@@ -315,6 +314,7 @@ public class ElevationUtils {
                 maximumDragResistiveForceComponent = dragReistiveForceComponent;
             }
         }
+
         /*
          * Here we divide by the *flat length* as the slope/work cost factors are multipliers of the
          * length of the street edge which is the flat one.
@@ -506,7 +506,7 @@ public class ElevationUtils {
                        //no need to interpolate as this is the first coordinate
                         continue;
                     }
-                    // interpolate start coordinate 
+                    // interpolate start coordinate
                     double run = coord.x - lastCoord.x;
                     if (run < 1) {
                         //tiny runs are likely to lead to errors, so we'll skip them
@@ -536,7 +536,7 @@ public class ElevationUtils {
         Coordinate coordArr[] = new Coordinate[coordList.size()];
         return new PackedCoordinateSequence.Float(coordList.toArray(coordArr), 2);
     }
-    
+
     /** checks for units (m/ft) in an OSM ele tag value, and returns the value in meters */
     public static Double parseEleTag(String ele) {
         ele = ele.toLowerCase();

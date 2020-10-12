@@ -3,6 +3,7 @@ package org.opentripplanner.api.resource;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineString;
+import org.opentripplanner.api.model.BoardAlightType;
 import org.opentripplanner.api.model.Itinerary;
 import org.opentripplanner.api.model.Leg;
 import org.opentripplanner.api.model.Place;
@@ -10,7 +11,6 @@ import org.opentripplanner.api.model.RelativeDirection;
 import org.opentripplanner.api.model.TripPlan;
 import org.opentripplanner.api.model.VertexType;
 import org.opentripplanner.api.model.WalkStep;
-import org.opentripplanner.api.model.BoardAlightType;
 import org.opentripplanner.common.geometry.DirectionUtils;
 import org.opentripplanner.common.geometry.GeometryUtils;
 import org.opentripplanner.common.geometry.PackedCoordinateSequence;
@@ -41,6 +41,7 @@ import org.opentripplanner.routing.edgetype.RentABikeOffEdge;
 import org.opentripplanner.routing.edgetype.RentABikeOnEdge;
 import org.opentripplanner.routing.edgetype.SimpleTransfer;
 import org.opentripplanner.routing.edgetype.StreetEdge;
+import org.opentripplanner.routing.edgetype.TransitBoardAlight;
 import org.opentripplanner.routing.edgetype.TripPattern;
 import org.opentripplanner.routing.edgetype.flex.PartialPatternHop;
 import org.opentripplanner.routing.edgetype.flex.TemporaryDirectPatternHop;
@@ -62,6 +63,8 @@ import org.opentripplanner.routing.vertextype.VehicleRentalStationVertex;
 import org.opentripplanner.util.PolylineEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import jdk.nashorn.internal.runtime.regexp.joni.constants.Traverse;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -135,6 +138,7 @@ public abstract class GraphPathToTripPlanConverter {
                     totalDistance += leg.distance;
                     if (leg.isTransitLeg()) transitDistance += leg.distance;
                 }
+
                 // Handle percentage case
                 // TODO: handle number formatting errors
                 if (request.minTransitDistance.endsWith("%")) {
@@ -142,6 +146,7 @@ public abstract class GraphPathToTripPlanConverter {
                     double minPct = Double.parseDouble(request.minTransitDistance.substring(0, request.minTransitDistance.length() - 1)) / 100;
                     if (pctTransit < minPct) continue;
                 }
+
                 // TODO: handle explicit distance case
             }
 
@@ -300,14 +305,32 @@ public abstract class GraphPathToTripPlanConverter {
             throw new TrivialPathException();
         }
 
-        int[] legIndexPairs = {0, states.length - 1};
+        // TODO: track walking a vehicle in the state? use backWalkingBike or a new variable?
+        boolean ridingOrWalkingVehicle = false;
+
+        int lastStateIndex = states.length - 1;
+        int[] legIndexPairs = {0, lastStateIndex};
         List<int[]> legsIndexes = new ArrayList<int[]>();
 
-        for (int i = 1; i < states.length - 1; i++) {
+        for (int i = 1; i < lastStateIndex; i++) {
             TraverseMode backMode = states[i].getBackMode();
             TraverseMode forwardMode = states[i + 1].getBackMode();
 
             if (backMode == null || forwardMode == null) continue;
+
+            if (states[i].isVehicleRenting()) {
+                if (states[i+1].isVehicleRenting()) {
+                    // A complicating factor is that the WALK before the first MICROMOBILITY
+                    // is marked with isVehicleRenting.
+                    //if (backMode == TraverseMode.MICROMOBILITY && (forwardMode != TraverseMode.WALK || (i + 2) > lastStateIndex || states[i+2].isVehicleRenting()))
+                    //    ridingOrWalkingVehicle = false;
+                    if (backMode == TraverseMode.WALK && (forwardMode != TraverseMode.MICROMOBILITY) || (i - 1) < 0 || states[i-1].isVehicleRenting())
+                        ridingOrWalkingVehicle = true;
+                }
+                else {
+                    ridingOrWalkingVehicle = false;
+                }
+            }
 
             Edge edge = states[i + 1].getBackEdge();
 
@@ -315,19 +338,34 @@ public abstract class GraphPathToTripPlanConverter {
                 if (backMode != TraverseMode.LEG_SWITCH) {              // Start of leg switch
                     legIndexPairs[1] = i;
                 } else if (forwardMode != TraverseMode.LEG_SWITCH) {    // End of leg switch
-                    if (legIndexPairs[1] != states.length - 1) {
+                    // if the start edge of the first state in the current leg index pair is a TransitBoardAlight edge
+                    // and the edge of the state just after the current leg index pair is a TransitBoardAlight edge,
+                    // then make that index be the final state of the current leg. This is to ensure that alerts
+                    // associated with TransitBoardAlight vertices are able to be found for legs.
+                   if (
+                        states[legIndexPairs[0]].getBackMode() != null &&
+                        states[legIndexPairs[0]].backEdge instanceof TransitBoardAlight &&
+                            states[legIndexPairs[1] + 1].backEdge instanceof TransitBoardAlight &&
+                            legIndexPairs[1] + 1 < lastStateIndex
+                    ) {
+                        legIndexPairs[1] = legIndexPairs[1] + 1;
+                    }
+                    if (legIndexPairs[1] != lastStateIndex) {
                         legsIndexes.add(legIndexPairs);
                     }
-                    legIndexPairs = new int[] {i, states.length - 1};
+                    legIndexPairs = new int[] {i, lastStateIndex};
                 }
-            } else if (backMode != forwardMode) {                       // Mode change => leg switch
+            } else if (
+                backMode != forwardMode &&                              // Mode change => leg switch
+                !ridingOrWalkingVehicle                                 // unless walking a vehicle
+                ) {
                 legIndexPairs[1] = i;
                 legsIndexes.add(legIndexPairs);
-                legIndexPairs = new int[] {i, states.length - 1};
+                legIndexPairs = new int[] {i, lastStateIndex};
             } else if (edge instanceof PatternInterlineDwell) {         // Interlining => leg switch
                 legIndexPairs[1] = i;
                 legsIndexes.add(legIndexPairs);
-                legIndexPairs = new int[] {i + 1, states.length - 1};
+                legIndexPairs = new int[] {i + 1, lastStateIndex};
             }
         }
 
@@ -361,7 +399,7 @@ public abstract class GraphPathToTripPlanConverter {
         Edge[] edges = new Edge[states.length - 1];
 
         leg.startTime = makeCalendar(states[0]);
-        leg.endTime = makeCalendar(states[states.length - 1]);
+        leg.endTime = makeCalendar(getLastOnboardTransitState(states));
 
         // Calculate leg distance and fill array of edges
         leg.distance = 0.0;
@@ -386,6 +424,7 @@ public abstract class GraphPathToTripPlanConverter {
 
         addFrequencyFields(states, leg);
 
+        // TEMP until we fully make the transition to MICROMOBILITY (only for BICYCLE)
         leg.rentedBike = states[0].isBikeRenting() && states[states.length - 1].isBikeRenting();
         if (leg.rentedBike) {
             leg.vehicleType = "bike";
@@ -411,8 +450,20 @@ public abstract class GraphPathToTripPlanConverter {
         leg.hailedCar = states[0].isUsingHailedCar() || states[states.length - 1].isUsingHailedCar();
 
         addModeAndAlerts(graph, leg, states, disableAlertFiltering, requestedLocale);
-        if (leg.isTransitLeg()) addRealTimeData(leg, states);
+        if (leg.isTransitLeg()) {
+            addRealTimeData(leg, states);
 
+            leg.interStopGeometry = new ArrayList<>();
+            for (Edge edge : edges) {
+                if (edge instanceof HopEdge) {
+                    LineString edgeGeom = edge.getGeometry();
+                    CoordinateArrayListSequence edgeCoords = new CoordinateArrayListSequence();
+                    edgeCoords.extend(edgeGeom.getCoordinates());
+                    Geometry geom = GeometryUtils.getGeometryFactory().createLineString(edgeCoords);
+                    leg.interStopGeometry.add(PolylineEncoder.createEncodings(geom));
+                }
+            }
+        }
         return leg;
     }
 
@@ -614,12 +665,13 @@ public abstract class GraphPathToTripPlanConverter {
             Set<Alert> alerts = graph.streetNotesService.getNotes(state);
             Edge edge = state.getBackEdge();
 
-            if (mode != null) {
+            // Update the mode for each state, unless it is null or a LEG_SWITCH mode
+            if (mode != null && mode != TraverseMode.LEG_SWITCH) {
                 leg.mode = mode.toString();
 
-                // TEMP
-                if (leg.mode == "MICROMOBILITY")
-                    leg.mode = "BICYCLE";
+                // TEMP until we transition to micromobility
+                //if (leg.mode == "MICROMOBILITY")
+                //    leg.mode = "BICYCLE";
             }
 
             if (alerts != null) {
@@ -657,14 +709,15 @@ public abstract class GraphPathToTripPlanConverter {
         if (trip != null) {
             Route route = trip.getRoute();
             Agency agency = route.getAgency();
-            ServiceDay serviceDay = states[states.length - 1].getServiceDay();
+            State lastOnboardTransitState = getLastOnboardTransitState(states);
+            ServiceDay serviceDay = lastOnboardTransitState.getServiceDay();
 
             leg.agencyId = agency.getId();
             leg.agencyName = agency.getName();
             leg.agencyUrl = agency.getUrl();
             leg.agencyBrandingUrl = agency.getBrandingUrl();
             leg.headsign = states[1].getBackDirection();
-            leg.route = states[states.length - 1].getBackEdge().getName(requestedLocale);
+            leg.route = lastOnboardTransitState.getBackEdge().getName(requestedLocale);
             leg.routeColor = route.getColor();
             leg.routeId = route.getId();
             leg.routeLongName = route.getLongName();
@@ -693,14 +746,14 @@ public abstract class GraphPathToTripPlanConverter {
                 leg.headsign = trip.getTripHeadsign();
             }
 
-            Edge edge = states[states.length - 1].backEdge;
+            Edge edge = lastOnboardTransitState.backEdge;
             if (edge instanceof TemporaryDirectPatternHop) {
                 leg.callAndRide = true;
             }
             if (edge instanceof PartialPatternHop) {
                 PartialPatternHop hop = (PartialPatternHop) edge;
                 int directTime = hop.getDirectVehicleTime();
-                TripTimes tt = states[states.length - 1].getTripTimes();
+                TripTimes tt = lastOnboardTransitState.getTripTimes();
                 int maxTime = tt.getDemandResponseMaxTime(directTime);
                 int avgTime = tt.getDemandResponseAvgTime(directTime);
                 int delta = maxTime - avgTime;
@@ -735,14 +788,14 @@ public abstract class GraphPathToTripPlanConverter {
         Vertex lastVertex = states[states.length - 1].getVertex();
 
         Stop firstStop = firstVertex instanceof TransitVertex ?
-                ((TransitVertex) firstVertex).getStop(): null;
+            ((TransitVertex) firstVertex).getStop(): null;
         Stop lastStop = lastVertex instanceof TransitVertex ?
-                ((TransitVertex) lastVertex).getStop(): null;
+            ((TransitVertex) lastVertex).getStop(): null;
         TripTimes tripTimes = states[states.length - 1].getTripTimes();
 
         leg.from = makePlace(states[0], firstVertex, edges[0], firstStop, tripTimes, requestedLocale);
         leg.from.arrival = null;
-        leg.to = makePlace(states[states.length - 1], lastVertex, null, lastStop, tripTimes, requestedLocale);
+        leg.to = makePlace(getLastOnboardTransitState(states), lastVertex, null, lastStop, tripTimes, requestedLocale);
         leg.to.departure = null;
 
         if (showIntermediateStops) {
@@ -773,6 +826,20 @@ public abstract class GraphPathToTripPlanConverter {
     }
 
     /**
+     * In some leg states, the final state might be a TransitBoardAlight edge type, where instead we may want an edge
+     * containing information about the transit route/pattern/etc. This method will find and return the correct state to
+     * use for calculating transit-related items for a leg.
+     *
+     * @param states An array of states representing a leg
+     */
+    private static State getLastOnboardTransitState(State[] states) {
+        int lastTransitStateIndex = states[states.length - 1].backEdge instanceof TransitBoardAlight
+            ? states.length - 2
+            : states.length - 1;
+        return states[lastTransitStateIndex];
+    }
+
+    /**
      * Make a {@link Place} to add to a {@link Leg}.
      *
      * @param state The {@link State} that the {@link Place} pertains to.
@@ -794,7 +861,7 @@ public abstract class GraphPathToTripPlanConverter {
             name = ((StreetVertex) vertex).getIntersectionName(requestedLocale).toString(requestedLocale);
         }
         Place place = new Place(vertex.getX(), vertex.getY(), name,
-                makeCalendar(state), makeCalendar(state));
+            makeCalendar(state), makeCalendar(state));
 
         if (endOfLeg) edge = state.getBackEdge();
 
@@ -806,7 +873,8 @@ public abstract class GraphPathToTripPlanConverter {
             place.platformCode = stop.getPlatformCode();
             place.zoneId = stop.getZoneId();
             place.stopIndex = ((OnboardEdge) edge).getStopIndex();
-            if (endOfLeg) place.stopIndex++;
+            // TransitBoardAlight edges don't advance the stopIndex, so don't increment if one is encountered at the end
+            if (endOfLeg && !(edge instanceof TransitBoardAlight)) place.stopIndex++;
             if (tripTimes != null) {
                 place.stopSequence = tripTimes.getStopSequence(place.stopIndex);
             }
@@ -864,9 +932,9 @@ public abstract class GraphPathToTripPlanConverter {
 
     /**
      * Converts a list of street edges to a list of turn-by-turn directions.
-     * 
+     *
      * @param previous a non-transit leg that immediately precedes this one (bike-walking, say), or null
-     * 
+     *
      * @return
      */
     public static List<WalkStep> generateWalkSteps(Graph graph, State[] states, WalkStep previous, Locale requestedLocale) {
@@ -912,6 +980,10 @@ public abstract class GraphPathToTripPlanConverter {
             if (forwardState.getBackMode() == null || !forwardState.getBackMode().isOnStreetNonTransit()) {
                 continue; // ignore STLs and the like
             }
+            // ignore ElevatorBoardEdges, narratives for elevators only come from ElevatorAlightEdges
+            if (edge instanceof ElevatorBoardEdge)
+                continue;
+
             Geometry geom = edge.getGeometry();
             if (geom == null) {
                 continue;
@@ -964,9 +1036,9 @@ public abstract class GraphPathToTripPlanConverter {
                 // new step, set distance to length of first edge
                 distance = edge.getDistance();
             } else if (((step.streetName != null && !step.streetNameNoParens().equals(streetNameNoParens))
-                    && (!step.bogusName || !edge.hasBogusName())) ||
-                    edge.isRoundabout() != (roundaboutExit > 0) || // went on to or off of a roundabout
-                    isLink(edge) && !isLink(backState.getBackEdge())) {
+                && (!step.bogusName || !edge.hasBogusName())) ||
+                edge.isRoundabout() != (roundaboutExit > 0) || // went on to or off of a roundabout
+                isLink(edge) && !isLink(backState.getBackEdge())) {
                 // Street name has changed, or we've gone on to or off of a roundabout.
                 if (roundaboutExit > 0) {
                     // if we were just on a roundabout,
@@ -999,7 +1071,7 @@ public abstract class GraphPathToTripPlanConverter {
                 /* street name has not changed */
                 double thisAngle = DirectionUtils.getFirstAngle(geom);
                 RelativeDirection direction = WalkStep.getRelativeDirection(lastAngle, thisAngle,
-                        edge.isRoundabout());
+                    edge.isRoundabout());
                 boolean optionsBefore = backState.multipleOptionsBefore();
                 if (edge.isRoundabout()) {
                     // we are on a roundabout, and have already traversed at least one edge of it.
@@ -1029,7 +1101,7 @@ public abstract class GraphPathToTripPlanConverter {
                                 continue;
                             }
                             double altAngle = DirectionUtils.getFirstAngle(alternative
-                                    .getGeometry());
+                                .getGeometry());
                             double altAngleDiff = getAbsoluteAngleDiff(altAngle, lastAngle);
                             if (angleDiff > Math.PI / 4 || altAngleDiff - angleDiff < Math.PI / 16) {
                                 shouldGenerateContinue = true;
@@ -1043,7 +1115,7 @@ public abstract class GraphPathToTripPlanConverter {
                         Vertex backVertex = twoStatesBack.getVertex();
                         for (Edge alternative : backVertex.getOutgoingStreetEdges()) {
                             List<Edge> alternatives = alternative.getToVertex()
-                                    .getOutgoingStreetEdges();
+                                .getOutgoingStreetEdges();
                             if (alternatives.size() == 0) {
                                 continue; // this is not an alternative
                             }
@@ -1054,7 +1126,7 @@ public abstract class GraphPathToTripPlanConverter {
                                 continue;
                             }
                             double altAngle = DirectionUtils.getFirstAngle(alternative
-                                    .getGeometry());
+                                .getGeometry());
                             double altAngleDiff = getAbsoluteAngleDiff(altAngle, lastAngle);
                             if (angleDiff > Math.PI / 4 || altAngleDiff - angleDiff < Math.PI / 16) {
                                 shouldGenerateContinue = true;
@@ -1095,36 +1167,34 @@ public abstract class GraphPathToTripPlanConverter {
                     WalkStep lastStep = steps.get(last);
 
                     if (twoBack.distance < MAX_ZAG_DISTANCE
-                            && lastStep.streetNameNoParens().equals(threeBack.streetNameNoParens())) {
-                        
-                        if (((lastStep.relativeDirection == RelativeDirection.RIGHT || 
-                                lastStep.relativeDirection == RelativeDirection.HARD_RIGHT) &&
-                                (twoBack.relativeDirection == RelativeDirection.RIGHT ||
-                                twoBack.relativeDirection == RelativeDirection.HARD_RIGHT)) ||
-                                ((lastStep.relativeDirection == RelativeDirection.LEFT || 
+                        && lastStep.streetNameNoParens().equals(threeBack.streetNameNoParens())) {
+
+                        if (((lastStep.relativeDirection == RelativeDirection.RIGHT ||
+                            lastStep.relativeDirection == RelativeDirection.HARD_RIGHT) &&
+                            (twoBack.relativeDirection == RelativeDirection.RIGHT ||
+                            twoBack.relativeDirection == RelativeDirection.HARD_RIGHT)) ||
+                            ((lastStep.relativeDirection == RelativeDirection.LEFT ||
                                 lastStep.relativeDirection == RelativeDirection.HARD_LEFT) &&
                                 (twoBack.relativeDirection == RelativeDirection.LEFT ||
-                                twoBack.relativeDirection == RelativeDirection.HARD_LEFT))) {
+                                    twoBack.relativeDirection == RelativeDirection.HARD_LEFT))) {
                             // in this case, we have two left turns or two right turns in quick 
                             // succession; this is probably a U-turn.
-                            
+
                             steps.remove(last - 1);
-                            
+
                             lastStep.distance += twoBack.distance;
-                            
+
                             // A U-turn to the left, typical in the US. 
-                            if (lastStep.relativeDirection == RelativeDirection.LEFT || 
-                                    lastStep.relativeDirection == RelativeDirection.HARD_LEFT)
+                            if (lastStep.relativeDirection == RelativeDirection.LEFT ||
+                                lastStep.relativeDirection == RelativeDirection.HARD_LEFT)
                                 lastStep.relativeDirection = RelativeDirection.UTURN_LEFT;
                             else
                                 lastStep.relativeDirection = RelativeDirection.UTURN_RIGHT;
-                            
+
                             // in this case, we're definitely staying on the same street 
                             // (since it's zag removal, the street names are the same)
                             lastStep.stayOn = true;
-                        }
-                                
-                        else {
+                        } else if (!twoBack.relativeDirection.equals(RelativeDirection.ELEVATOR)) {
                             // What is a zag? TODO write meaningful documentation for this.
                             // It appears to mean simplifying out several rapid turns in succession
                             // from the description.
@@ -1149,7 +1219,7 @@ public abstract class GraphPathToTripPlanConverter {
             } else {
                 if (!createdNewStep && step.elevation != null) {
                     List<P2<Double>> s = encodeElevationProfile(edge, distance,
-                            backState.getOptions().geoidElevation ? -graph.ellipsoidToGeoidDifference : 0);
+                        backState.getOptions().geoidElevation ? -graph.ellipsoidToGeoidDifference : 0);
                     if (step.elevation != null && step.elevation.size() > 0) {
                         step.elevation.addAll(s);
                     } else {
@@ -1170,12 +1240,12 @@ public abstract class GraphPathToTripPlanConverter {
 
         // add bike rental information if applicable
         if(onBikeRentalState != null && !steps.isEmpty()) {
-            steps.get(steps.size()-1).bikeRentalOnStation = 
-                    new BikeRentalStationInfo((BikeRentalStationVertex) onBikeRentalState.getBackEdge().getToVertex());
+            steps.get(steps.size()-1).bikeRentalOnStation =
+                new BikeRentalStationInfo((BikeRentalStationVertex) onBikeRentalState.getBackEdge().getToVertex());
         }
         if(offBikeRentalState != null && !steps.isEmpty()) {
-            steps.get(0).bikeRentalOffStation = 
-                    new BikeRentalStationInfo((BikeRentalStationVertex) offBikeRentalState.getBackEdge().getFromVertex());
+            steps.get(0).bikeRentalOffStation =
+                new BikeRentalStationInfo((BikeRentalStationVertex) offBikeRentalState.getBackEdge().getFromVertex());
         }
 
         return steps;
@@ -1205,7 +1275,7 @@ public abstract class GraphPathToTripPlanConverter {
         step.lon = en.getFromVertex().getX();
         step.lat = en.getFromVertex().getY();
         step.elevation = encodeElevationProfile(s.getBackEdge(), 0,
-                s.getOptions().geoidElevation ? -graph.ellipsoidToGeoidDifference : 0);
+            s.getOptions().geoidElevation ? -graph.ellipsoidToGeoidDifference : 0);
         step.bogusName = en.hasBogusName();
         step.addAlerts(graph.streetNotesService.getNotes(s), wantedLocale);
         step.angle = DirectionUtils.getFirstAngle(s.getBackEdge().getGeometry());

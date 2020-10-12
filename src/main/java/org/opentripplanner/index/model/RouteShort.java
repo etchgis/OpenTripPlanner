@@ -3,6 +3,7 @@ package org.opentripplanner.index.model;
 import java.util.Collection;
 import java.util.List;
 
+import org.opentripplanner.model.Agency;
 import org.opentripplanner.model.FeedScopedId;
 import org.opentripplanner.model.Route;
 import org.opentripplanner.gtfs.GtfsLibrary;
@@ -16,7 +17,9 @@ public class RouteShort {
     public String longName;
     public String mode;
     public String color;
+    public String agencyId;
     public String agencyName;
+    public Integer sortOrder;
 
     public RouteShort (Route route) {
         id = route.getId();
@@ -24,7 +27,10 @@ public class RouteShort {
         longName = route.getLongName();
         mode = GtfsLibrary.getTraverseMode(route).toString();
         color = route.getColor();
-        agencyName = route.getAgency().getName();
+        Agency agency = route.getAgency();
+        agencyId = agency.getId();
+        agencyName = agency.getName();
+        sortOrder = route.getSortOrder();
     }
 
     public static List<RouteShort> list (Collection<Route> in) {

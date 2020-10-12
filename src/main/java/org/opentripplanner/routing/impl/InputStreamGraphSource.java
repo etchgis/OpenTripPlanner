@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.node.MissingNode;
 import com.google.common.io.ByteStreams;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.services.GraphSource;
-import org.opentripplanner.routing.services.StreetVertexIndexFactory;
 import org.opentripplanner.standalone.Router;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +16,7 @@ import java.io.*;
 /**
  * The primary implementation of the GraphSource interface. The graph is loaded from a serialized
  * graph from a given source.
- * 
+ *
  */
 public class InputStreamGraphSource implements GraphSource {
 
@@ -44,9 +43,6 @@ public class InputStreamGraphSource implements GraphSource {
      * The current used input stream implementation for getting graph data source.
      */
     private Streams streams;
-
-    // TODO Why do we need a factory? There is a single one implementation.
-    private StreetVertexIndexFactory streetVertexIndexFactory = new DefaultStreetVertexIndexFactory();
 
     /**
      * @return A GraphSource loading graph from the file system under a base path.
@@ -142,7 +138,7 @@ public class InputStreamGraphSource implements GraphSource {
 
     /**
      * Check if a graph has been modified since the last time it has been loaded.
-     * 
+     *
      * @param lastModified Time of last modification of current loaded data.
      * @return True if the input data has been modified and need to be reloaded.
      */
@@ -150,8 +146,8 @@ public class InputStreamGraphSource implements GraphSource {
         // We check only for graph file modification, not config
         long validEndTime = System.currentTimeMillis() - LOAD_DELAY_SEC * 1000;
         LOG.debug(
-                "checkAutoReload router '{}' validEndTime={} lastModified={} graphLastModified={}",
-                routerId, validEndTime, lastModified, graphLastModified);
+            "checkAutoReload router '{}' validEndTime={} lastModified={} graphLastModified={}",
+            routerId, validEndTime, lastModified, graphLastModified);
         if (lastModified != graphLastModified && lastModified <= validEndTime) {
             // Only reload graph modified more than 1 mn ago.
             LOG.info("Router ID '{}' graph input modification detected, force reload.", routerId);
@@ -275,7 +271,7 @@ public class InputStreamGraphSource implements GraphSource {
             File graphFile = new File(path, GRAPH_FILENAME);
             LOG.debug("Loading graph from classpath at '{}'", graphFile.getPath());
             return Thread.currentThread().getContextClassLoader()
-                    .getResourceAsStream(graphFile.getPath());
+                .getResourceAsStream(graphFile.getPath());
         }
 
         @Override
@@ -283,7 +279,7 @@ public class InputStreamGraphSource implements GraphSource {
             File configFile = new File(path, Router.ROUTER_CONFIG_FILENAME);
             LOG.debug("Trying to load config on classpath at '{}'", configFile.getPath());
             return Thread.currentThread().getContextClassLoader()
-                    .getResourceAsStream(configFile.getPath());
+                .getResourceAsStream(configFile.getPath());
         }
 
         /**

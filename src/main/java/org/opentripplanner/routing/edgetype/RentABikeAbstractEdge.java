@@ -42,12 +42,15 @@ public abstract class RentABikeAbstractEdge extends Edge {
 
         BikeRentalStationVertex vertex = (BikeRentalStationVertex) tov;
         /*
-        * To rent a bike, we need to have BICYCLE in allowed modes.
-        */
+         * To rent a bike, we need to have BICYCLE in allowed modes.
+         */
         if (!options.modes.contains(TraverseMode.BICYCLE) || !vertex.isPickupAllowed())
             return null;
 
-        if (options.useBikeRentalAvailabilityInformation && vertex.getBikesAvailable() == 0) {
+        BikeRentalStationVertex dropoff = (BikeRentalStationVertex) tov;
+        if (options.useBikeRentalAvailabilityInformation &&
+                (!options.arriveBy && dropoff.getBikesAvailable() == 0
+                || options.arriveBy && dropoff.getSpacesAvailable() == 0)) {
             return null;
         }
 
@@ -69,7 +72,9 @@ public abstract class RentABikeAbstractEdge extends Edge {
         if (!s0.isBikeRenting() || !hasCompatibleNetworks(networks, s0.getBikeRentalNetworks()))
             return null;
         BikeRentalStationVertex pickup = (BikeRentalStationVertex) tov;
-        if (options.useBikeRentalAvailabilityInformation && pickup.getSpacesAvailable() == 0) {
+        if (options.useBikeRentalAvailabilityInformation &&
+                (!options.arriveBy && pickup.getSpacesAvailable() == 0
+                || options.arriveBy && pickup.getBikesAvailable() == 0)) {
             return null;
         }
 

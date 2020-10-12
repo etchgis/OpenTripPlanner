@@ -122,8 +122,10 @@ public class StreetSplitter {
 
     /**
      * Construct a new StreetSplitter.
-     * NOTE: Only one StreetSplitter should be active on a graph at any given time and this is enforced by an error
-     * being thrown if more than an attempt is made to instantiate a 2nd instance of a StreetSplitter on the same graph.
+     *
+     * IMPORTANT NOTE: Only one StreetSplitter should be active on a graph at any given time. This is because any
+     * newly-created split edges in this street splitter won't show up in the index of the other street splitters
+     * (and potentially StreetVertexIndexServices).
      *
      * @param hashGridSpatialIndex If not null this index is used instead of creating new one
      * @param transitStopIndex Index of all transitStops which is generated in {@link org.opentripplanner.routing.impl.StreetVertexIndexServiceImpl}
@@ -135,9 +137,9 @@ public class StreetSplitter {
     ) {
         this.graph = graph;
         if (graphsWithSplitters.contains(graph)) {
-            throw new UnsupportedOperationException("Only one street splitter should be active on a graph at any given time");
+            LOG.warn("Multiple StreetSplitters detected on the same graph! Make sure only the most recently created one is used going forward!");
         }
-        LOG.info("New StreetSpiltter created successfully!");
+        LOG.info("New StreetSplitter created successfully!");
         graphsWithSplitters.add(graph);
         this.transitStopIndex = transitStopIndex;
 
@@ -175,7 +177,9 @@ public class StreetSplitter {
      */
     public void linkAllStationsToGraph() {
         for (Vertex v : graph.getVertices()) {
-            if (v instanceof TransitStop || v instanceof BikeRentalStationVertex || v instanceof BikeParkVertex)
+            if (v instanceof TransitStop || v instanceof BikeRentalStationVertex || v instanceof BikeParkVertex) {
+                boolean alreadyLinked = v.getOutgoing().stream().anyMatch(e -> e instanceof StreetTransitLink);
+                if (alreadyLinked) continue;
                 if (!linkToClosestWalkableEdge(v, DESTRUCTIVE_SPLIT, false)) {
                     if (v instanceof TransitStop)
                         LOG.warn(graph.addBuilderAnnotation(new StopUnlinked((TransitStop) v)));
@@ -184,6 +188,7 @@ public class StreetSplitter {
                     else if (v instanceof BikeParkVertex)
                         LOG.warn(graph.addBuilderAnnotation(new BikeParkUnlinked((BikeParkVertex) v)));
                 };
+            }
         }
     }
 
@@ -652,7 +657,8 @@ public class StreetSplitter {
             throw new RuntimeException("Transitedges are created with non destructive splitting!");
         }
         // ensure that the requisite edges do not already exist
-        // this can happen if we link to duplicate ways that have the same start/end vertices.
+        // this can happen if we link to duplicate ways that have the same start/end vertices or if
+        // certain transit stops were already linked to the network in the TransitToTaggedStopsModule.
         for (StreetTransitLink e : Iterables.filter(tstop.getOutgoing(), StreetTransitLink.class)) {
             if (e.getToVertex() == v)
                 return;
@@ -748,6 +754,8 @@ public class StreetSplitter {
             coord, new NonLocalizedString(name), endVertex);
 
         TraverseMode nonTransitMode = TraverseMode.WALK;
+        boolean linkWithSingleMode = true;
+
         //It can be null in tests
         if (options != null) {
             TraverseModeSet modes = options.modes;
@@ -755,19 +763,28 @@ public class StreetSplitter {
                 // for park and ride we will start in car mode and walk to the end vertex
                 if (endVertex && (options.parkAndRide || options.kissAndRide)) {
                     nonTransitMode = TraverseMode.WALK;
+                }
+                // for tnc routing it would be possible to walk or drive
+                else if (options.useTransportationNetworkCompany) {
+                    linkWithSingleMode = false;
+                    if(!linkToGraph(
+                        closest,
+                        new TraverseModeSet(TraverseMode.WALK, TraverseMode.CAR),
+                        options,
+                        NON_DESTRUCTIVE_SPLIT,
+                        false
+                    )) {
+                        LOG.warn("Couldn't link {}", location);
+                    }
                 } else {
                     nonTransitMode = TraverseMode.CAR;
                 }
-            else if (modes.getWalk())
-                nonTransitMode = TraverseMode.WALK;
-            else if (modes.getBicycle())
-                nonTransitMode = TraverseMode.BICYCLE;
-            else if (modes.getMicromobility())
-                //nonTransitMode = TraverseMode.MICROMOBILITY;
-                nonTransitMode = TraverseMode.WALK;
+            else if (modes.getWalk()) nonTransitMode = TraverseMode.WALK;
+            else if (modes.getBicycle()) nonTransitMode = TraverseMode.BICYCLE;
+            else if (modes.getMicromobility()) nonTransitMode = TraverseMode.MICROMOBILITY;
         }
 
-        if(!linkToGraph(closest, nonTransitMode, options, NON_DESTRUCTIVE_SPLIT, false)) {
+        if(linkWithSingleMode && !linkToGraph(closest, nonTransitMode, options, NON_DESTRUCTIVE_SPLIT, false)) {
             LOG.warn("Couldn't link {}", location);
         }
         return closest;

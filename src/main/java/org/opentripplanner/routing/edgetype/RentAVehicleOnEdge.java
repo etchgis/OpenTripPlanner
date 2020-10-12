@@ -1,3 +1,16 @@
+/* This program is free software: you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public License
+ as published by the Free Software Foundation, either version 3 of
+ the License, or (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
+
 package org.opentripplanner.routing.edgetype;
 
 import com.google.common.collect.Sets;
@@ -104,7 +117,7 @@ public class RentAVehicleOnEdge extends RentAVehicleAbstractEdge {
             }
 
             // looks like it's ok to have rented a vehicle from this station. Transition out of the vehicle rental state.
-            s1e.setVehicleType(station.type);   // TODO: is this okay to do? what about other states?
+            s1e.setVehicleType(station.type);   // TODO: is this okay to do? what about the other states later in the path marked as UNKNOWN?
             s1e.endVehicleRenting();
         } else {
             // make sure more than 1 vehicle isn't rented at once
@@ -112,7 +125,7 @@ public class RentAVehicleOnEdge extends RentAVehicleAbstractEdge {
                 // already renting a vehicle, don't allow 2 rentals
                 return null;
             }
-/*
+
             // make sure a vehicle is rented only once during pre/post transit parts of the trip
             if (s0.isEverBoarded()) {
                 if (s0.stateData.hasRentedVehiclePostTransit()) {
@@ -125,13 +138,10 @@ public class RentAVehicleOnEdge extends RentAVehicleAbstractEdge {
                     return null;
                 }
             }
-*/
+
             // looks like it's ok to have begun renting a vehicle from this station
             s1e.beginVehicleRenting(0, station.networks, station.type, station.isFloatingVehicle);
         }
-
-        // A rental station on-edge is always treated as walking, in both directions.
-        s1e.setBackMode(TraverseMode.WALK);
 
         // if this point is reached, it is possible to proceed with a vehicle rental pickup from this station
 

@@ -17,13 +17,8 @@ import org.opentripplanner.graph_builder.model.GtfsBundle;
 import org.opentripplanner.gtfs.BikeAccess;
 import org.opentripplanner.routing.edgetype.TripPattern;
 import org.opentripplanner.routing.graph.Graph;
-import org.opentripplanner.routing.impl.DefaultStreetVertexIndexFactory;
 
 public class GtfsGraphBuilderModuleTest {
-
-    private static final HashMap<Class<?>, Object> _extra = new HashMap<>();
-
-    private GtfsModule builder;
 
     @Test
     public void testNoBikesByDefault() throws IOException {
@@ -35,11 +30,11 @@ public class GtfsGraphBuilderModuleTest {
 
         List<GtfsBundle> bundleList = getGtfsAsBundleList(gtfs);
         bundleList.get(0).setDefaultBikesAllowed(false);
-        builder = new GtfsModule(bundleList);
+        GtfsModule builder = new GtfsModule(bundleList);
 
         Graph graph = new Graph();
-        builder.buildGraph(graph, _extra);
-        graph.index(new DefaultStreetVertexIndexFactory());
+        builder.buildGraph(graph, new GraphBuilderModuleSummary(builder));
+        graph.index(true);
 
         // Feed id is used instead of the agency id for OBA entities.
         GtfsBundle gtfsBundle = bundleList.get(0);
@@ -64,11 +59,11 @@ public class GtfsGraphBuilderModuleTest {
 
         List<GtfsBundle> bundleList = getGtfsAsBundleList(gtfs);
         bundleList.get(0).setDefaultBikesAllowed(true);
-        builder = new GtfsModule(bundleList);
+        GtfsModule builder = new GtfsModule(bundleList);
 
         Graph graph = new Graph();
-        builder.buildGraph(graph, _extra);
-        graph.index(new DefaultStreetVertexIndexFactory());
+        builder.buildGraph(graph, new GraphBuilderModuleSummary(builder));
+        graph.index(true);
 
         // Feed id is used instead of the agency id for OBA entities.
         GtfsBundle gtfsBundle = bundleList.get(0);
@@ -96,7 +91,7 @@ public class GtfsGraphBuilderModuleTest {
 
     private static List<GtfsBundle> getGtfsAsBundleList (MockGtfs gtfs) {
         GtfsBundle bundle = new GtfsBundle();
-        bundle.setFeedId(new GtfsFeedId.Builder().id("FEED").build());
+        bundle.setFeedId(new GtfsFeedId.Builder().id("").build());
         bundle.setPath(gtfs.getPath());
         List<GtfsBundle> list = Lists.newArrayList();
         list.add(bundle);

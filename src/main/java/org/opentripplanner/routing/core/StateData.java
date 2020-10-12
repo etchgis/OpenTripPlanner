@@ -24,7 +24,7 @@ public class StateData implements Cloneable {
     protected TripTimes tripTimes;
 
     protected FeedScopedId tripId;
-    
+
     protected Trip previousTrip;
 
     protected double lastTransitWalk = 0;
@@ -71,9 +71,13 @@ public class StateData implements Cloneable {
 
     protected ServiceDay serviceDay;
 
+    /**
+     * The mode of travel to use when not traveling on transit. This should be updated each time transitions happen to
+     * other modes such as parking a car at a park and ride or dropping off a bike rental.
+     */
     protected TraverseMode nonTransitMode;
 
-    /** 
+    /**
      * This is the wait time at the beginning of the trip (or at the end of the trip for
      * reverse searches). In Analyst anyhow, this is is subtracted from total trip length of each
      * final State in lieu of reverse optimization. It is initially set to zero so that it will be
@@ -88,7 +92,7 @@ public class StateData implements Cloneable {
     protected int lastNextArrivalDelta;
 
     /**
-     * The mode that was used to traverse the backEdge
+     * The mode that was used to traverse the state's backEdge
      */
     protected TraverseMode backMode;
 
@@ -125,7 +129,17 @@ public class StateData implements Cloneable {
 
     protected StateData clone() {
         try {
-            return (StateData) super.clone();
+            StateData clonedStateData = (StateData) super.clone();
+            // When HashSets (and other collections) are cloned, they contain references to the original HashSet (see
+            // https://stackoverflow.com/a/7537385/269834). Therefore, any Collection in a StateData instance must be
+            // recreated using a copy constructor if data is added to the Collection throughout a shortest path search.
+            // This will then ensure the Collections don't contain data that is specific to a certain path.
+            // For example, the rentedCars and rentedVehicles HashSets are populated with IDs of vehicles that were
+            // rented at some point during a shortest path search. However, other fields like vehicleRentalNetworks are
+            // only set once using data from a StreetEdge and are not added to throughout a shortest path search.
+            // See https://github.com/ibi-group/OpenTripPlanner/pull/15 for more discussion.
+            clonedStateData.rentedVehicles = new HashSet<>(this.rentedVehicles);
+            return clonedStateData;
         } catch (CloneNotSupportedException e1) {
             throw new IllegalStateException("This is not happening");
         }

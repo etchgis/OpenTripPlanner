@@ -433,7 +433,6 @@ public class StateEditor {
         child.stateData.extensions = state.stateData.extensions;
         child.stateData.usingRentedBike = state.stateData.usingRentedBike;
         child.stateData.usingRentedVehicle = state.stateData.usingRentedVehicle;
-        child.stateData.rentedVehicleAllowsFloatingDropoffs = state.stateData.rentedVehicleAllowsFloatingDropoffs;
         child.stateData.carParked = state.stateData.carParked;
         child.stateData.bikeParked = state.stateData.bikeParked;
     }
@@ -445,7 +444,6 @@ public class StateEditor {
         child.stateData.bikeParked = state.isBikeParked();
         child.stateData.usingRentedBike = state.isBikeRenting();
         child.stateData.usingRentedVehicle = state.isVehicleRenting();
-        child.stateData.rentedVehicleAllowsFloatingDropoffs = state.isFloatingVehicle();
     }
 
     /* PUBLIC GETTER METHODS */
@@ -565,6 +563,10 @@ public class StateEditor {
         cloneStateDataAsNeeded();
         child.stateData.usingRentedVehicle = false;
         child.stateData.rentedVehicleAllowsFloatingDropoffs = false;
+        child.stateData.vehicleType = VehicleType.UNKNOWN;
+        child.stateData.rentedVehicles.clear();
+        child.stateData.vehicleRentalNetworks = null;
+        child.stateData.backMode = TraverseMode.WALK;
         child.stateData.nonTransitMode = TraverseMode.WALK;
     }
 
@@ -589,7 +591,7 @@ public class StateEditor {
         child.stateData.nonTransitMode = TraverseMode.WALK;
     }
 
-     /**
+    /**
      * Board a hailed car (provided by a transportation network company).
      *
      * If boarding a hailed car before boarding transit in "depart at" mode, we assume that the ETA estimate is
@@ -607,7 +609,7 @@ public class StateEditor {
         child.boardHailedCar(initialEdgeDistance);
     }
 
-     /**
+    /**
      * Used only in State.optimizeOrReverse
      */
     public void setUsingHailedCar(boolean usingHailedCar) {

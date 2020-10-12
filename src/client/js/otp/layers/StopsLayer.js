@@ -108,11 +108,6 @@ otp.layers.StopsLayer =
         var to_stop_trans = _tr('To Stop');
         var routes_stop_trans = _tr('Routes Serving Stop');
 
-        // TriMet-specific code
-        if(stop.url && stop.url.indexOf("http://trimet.org") === 0) {
-            var stopId = stop.id.split(':')[1];
-            stop.titleLink = 'http://www.trimet.org/go/cgi-bin/cstops.pl?action=entry&resptype=U&lang=en&noCat=Landmark&Loc=' + stopId;
-        }
         var context = _.clone(stop);
         context.agencyStopLinkText = otp.config.agencyStopLinkText || "Agency Stop URL";
         context.stop_viewer = stop_viewer_trans;

@@ -40,6 +40,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -121,6 +122,15 @@ public class StreetEdge extends Edge implements Cloneable {
     /** The angle at the start of the edge geometry. Internal representation like that of inAngle. */
     private byte outAngle;
 
+    /** The walk comfort score. Applied as multiplier to edge weight; 1.0 is baseline */
+    protected float walkComfortScore;
+
+    /**
+     *  Map of OSM tags for this way. Only stored when 'includeOsmWays' builder param is true;
+     *  enables on-the-fly recalculation of walk comfort scores for testing/calibration purposes.
+     */
+    private Map<String, String> osmTags;
+
     /**
      * A set of vehicle networks where this edge is located inside their service regions.
      */
@@ -140,6 +150,7 @@ public class StreetEdge extends Edge implements Cloneable {
         this.setGeometry(geometry);
         this.length_mm = (int) (length * 1000); // CONVERT FROM FLOAT METERS TO FIXED MILLIMETERS
         this.bicycleSafetyFactor = 1.0f;
+        this.walkComfortScore = 1.0f;
         this.name = name;
         this.setPermission(permission);
         this.setCarSpeed(DEFAULT_CAR_SPEED);
@@ -305,9 +316,9 @@ public class StreetEdge extends Edge implements Cloneable {
             // Irrevocable transition from using hailed car to walking.
             // Final CAR check needed to prevent infinite recursion.
             if (
-                    s0.isUsingHailedCar()
-                            && !getPermission().allows(TraverseMode.CAR)
-                            && currMode == TraverseMode.CAR
+                s0.isUsingHailedCar() &&
+                    !getPermission().allows(TraverseMode.CAR) &&
+                    currMode == TraverseMode.CAR
             ) {
                 if (!s0.isTNCStopAllowed()) {
                     return null;
@@ -320,10 +331,10 @@ public class StreetEdge extends Edge implements Cloneable {
             }
             // possible transition to hailing a car
             else if (
-                    !s0.isUsingHailedCar()
-                            && getPermission().allows(TraverseMode.CAR)
-                            && currMode != TraverseMode.CAR
-                            && getTNCStopSuitability()
+                !s0.isUsingHailedCar() &&
+                    getPermission().allows(TraverseMode.CAR) &&
+                    currMode != TraverseMode.CAR &&
+                    getTNCStopSuitability()
             ) {
                 // perform extra checks to prevent entering a tnc vehicle if a car has already been
                 // hailed in the pre or post transit part of trip
@@ -334,22 +345,22 @@ public class StreetEdge extends Edge implements Cloneable {
                         options.arriveBy && (
                             // forbid hailing car a 2nd time post transit
                             (!s0.isEverBoarded() && s0.stateData.hasHailedCarPostTransit()) ||
-                                // forbid hailing car a 2nd time pre transit
-                                (s0.isEverBoarded() && s0.stateData.hasHailedCarPreTransit())
+                            // forbid hailing car a 2nd time pre transit
+                            (s0.isEverBoarded() && s0.stateData.hasHailedCarPreTransit())
                         )
-                    ) ||
-                    // depart at searches
+                    )||
                     (
                         !options.arriveBy && (
                             // forbid hailing car a 2nd time pre transit
                             (!s0.isEverBoarded() && s0.stateData.hasHailedCarPreTransit()) ||
-                                // forbid hailing car a 2nd time post transit
-                                (s0.isEverBoarded() && s0.stateData.hasHailedCarPostTransit())
+                            // forbid hailing car a 2nd time post transit
+                            (s0.isEverBoarded() && s0.stateData.hasHailedCarPostTransit())
                         )
                     )
                 ) {
                     return state;
                 }
+
                 StateEditor editorCar = doTraverse(s0, options, TraverseMode.CAR);
                 StateEditor editorNonCar = doTraverse(s0, options, currMode);
                 if (editorCar != null) {
@@ -412,7 +423,6 @@ public class StreetEdge extends Edge implements Cloneable {
                     }
                     if (editorEndedVehicleRental != null) {
                         editorEndedVehicleRental.endVehicleRenting(); // done with vehicle rental use for now
-                        editorEndedVehicleRental.setBackMode(TraverseMode.WALK);
                         editorEndedVehicleRental.incrementWeight(options.vehicleRentalDropoffCost);
                         editorEndedVehicleRental.incrementTimeInSeconds(options.vehicleRentalDropoffTime);
                         State endedVehicleRentalState = editorEndedVehicleRental.makeState();
@@ -440,7 +450,6 @@ public class StreetEdge extends Edge implements Cloneable {
                     StateEditor editorEndedVehicleRental = doTraverse(s0, options, TraverseMode.WALK);
                     if (editorEndedVehicleRental != null) {
                         editorEndedVehicleRental.endVehicleRenting(); // done with vehicle rental use for now
-                        editorEndedVehicleRental.setBackMode(TraverseMode.WALK);
                         editorEndedVehicleRental.incrementWeight(options.vehicleRentalDropoffCost);
                         editorEndedVehicleRental.incrementTimeInSeconds(options.vehicleRentalDropoffTime);
                         State endedVehicleRentalState = editorEndedVehicleRental.makeState();
@@ -453,12 +462,24 @@ public class StreetEdge extends Edge implements Cloneable {
                 }
             }
             // possible backward transition of completing a dropping off of a floating vehicle when in "arrive by" mode
+            // NOTE: the previous StreetEdge is considered because it can be reasoned that the very first point of the
+            // previous StreetEdge constitutes a part of this current StreetEdge. Since a vehicle rental could end on
+            // the previous StreetEdge, the floating rental vehicle is assumed to be left at the very end of the
+            // StreetEdge.
             else if (
                 !s0.isVehicleRenting() &&
-                    getPermission().allows(TraverseMode.MICROMOBILITY) &&
+                    (getPermission().allows(TraverseMode.MICROMOBILITY) || getPermission().allows(TraverseMode.WALK)) &&
                     currMode != TraverseMode.MICROMOBILITY &&
                     options.arriveBy &&
-                    s0.isVehicleRentalDropoffAllowed(this, false)
+                    (s0.isVehicleRentalDropoffAllowed(this, false) ||
+                        (
+                            s0.backEdge instanceof StreetEdge &&
+                                s0.isVehicleRentalDropoffAllowed(
+                                    (StreetEdge) s0.backEdge,
+                                    false
+                                )
+                        )
+                    )
             ) {
                 StateEditor editorWithVehicleRental = doTraverse(s0, options, TraverseMode.MICROMOBILITY);
                 if (editorWithVehicleRental != null) {
@@ -467,7 +488,17 @@ public class StreetEdge extends Edge implements Cloneable {
                     editorWithVehicleRental.incrementTimeInSeconds(options.vehicleRentalPickupTime);
                     // TODO by Jon: track list of allowable types for edge, pass to state, then weed them out.
                     editorWithVehicleRental.beginVehicleRenting(getDistance(), vehicleNetworks, VehicleType.UNKNOWN, true);
-                    editorWithVehicleRental.setBackMode(TraverseMode.MICROMOBILITY);
+                    // in arriveBy mode transitions on a street edge, we must immediately set the backmode to
+                    // Micromobility to make sure proper state is maintained for correct state slicing and reverse
+                    // optimization. In rentAVehicleOn/OffEdges, the mode should not change until the following state to
+                    // ensure that the state is sliced at the rentAVehicleOn/OffEdge. However, here, the slice must
+                    // occur here. NOTE: if the edge is only traversable by walking, then the backMode should be set to
+                    // walk
+                    editorWithVehicleRental.setBackMode(
+                        canTraverse(options, TraverseMode.MICROMOBILITY)
+                            ? TraverseMode.MICROMOBILITY
+                            : TraverseMode.WALK
+                    );
                     State editorWithVehicleRentalState = editorWithVehicleRental.makeState();
                     if (state != null) {
                         // make the forkState be of the non-vehicle-rental mode so it's possible to build walk steps
@@ -511,9 +542,9 @@ public class StreetEdge extends Edge implements Cloneable {
         /* Check whether this street allows the current mode. If not and we are biking, attempt to walk the bike. */
         if (!canTraverse(options, traverseMode)) {
             if (traverseMode == TraverseMode.BICYCLE || traverseMode == TraverseMode.MICROMOBILITY) {
-                //return doTraverse(s0, options.bikeWalkingOptions, TraverseMode.WALK);
+                return doTraverse(s0, options.bikeWalkingOptions, TraverseMode.WALK);
             }
-            else return null;
+            return null;
         }
 
         // Automobiles have variable speeds depending on the edge type
@@ -568,6 +599,7 @@ public class StreetEdge extends Edge implements Cloneable {
                 // FIXME: this causes steep stairs to be avoided. see #1297.
                 double distance = getSlopeWalkSpeedEffectiveLength();
                 weight = distance / speed;
+                weight = weight * walkComfortScore;
                 time = weight; //treat cost as time, as in the current model it actually is the same (this can be checked for maxSlope == 0)
                 /*
                 // debug code
@@ -687,17 +719,6 @@ public class StreetEdge extends Edge implements Cloneable {
 
             if (!traverseMode.isDriving()) {
                 s1.incrementWalkDistance(realTurnCost / 100);  // just a tie-breaker
-            } else {
-                // check if driveTimeReluctance is defined (ie it is greater than 0)
-                if (options.driveTimeReluctance > 0) {
-                    s1.incrementWeight(time * options.driveTimeReluctance);
-                }
-                if (options.driveDistanceReluctance > 0) {
-                    s1.incrementWeight(getDistance() * options.driveDistanceReluctance);
-                }
-                if (s0.isUsingHailedCar()) {
-                    s1.incrementTransportationNetworkCompanyDistance(getDistance());
-                }
             }
 
             int turnTime = (int) Math.ceil(realTurnCost);
@@ -719,25 +740,38 @@ public class StreetEdge extends Edge implements Cloneable {
             if (s0.isVehicleRenting()) {
                 s1.incrementVehicleRentalDistance(getDistance());
             }
+        } else {
+            // check if driveTimeReluctance is defined (ie it is greater than 0)
+            if (options.driveTimeReluctance > 0) {
+                s1.incrementWeight(time * options.driveTimeReluctance);
+            }
+            if (options.driveDistanceReluctance > 0) {
+                s1.incrementWeight(getDistance() * options.driveDistanceReluctance);
+            }
+            if (s0.isUsingHailedCar()) {
+                s1.incrementTransportationNetworkCompanyDistance(getDistance());
+            }
         }
 
         // On itineraries with car mode enabled, limit both walking and driving before transit,
-        // either soft or hard. We can safely assume no limit on driving after transit as most TNC
-        // companies will drive outside of the pickup boundaries.
+        // either soft or hard.
+        // We can safely assume no limit on driving after transit as most TNC companies will drive
+        // outside of the pickup boundaries.
         if (
             options.kissAndRide ||
                 options.parkAndRide ||
                 options.useTransportationNetworkCompany
         ) {
             if (options.arriveBy) {
+                // use different determining factor depending on what type of search this is.
                 if (
-                     // if kiss/park and ride, check if car has not yet been parked
-                     ((options.kissAndRide || options.parkAndRide) && !s0.isCarParked()) ||
-                         // if car hailing is enabled, check if a car has been hailed before transit
-                         (options.useTransportationNetworkCompany && !s0.stateData.hasHailedCarPreTransit())
-                 ) {
-                     s1.incrementPreTransitTime(roundedTime);
-                 }
+                    // if kiss/park and ride, check if car has not yet been parked
+                    ((options.kissAndRide || options.parkAndRide) && !s0.isCarParked()) ||
+                        // if car hailing is enabled, check if a car has been hailed before transit
+                        (options.useTransportationNetworkCompany && !s0.stateData.hasHailedCarPreTransit())
+                ) {
+                    s1.incrementPreTransitTime(roundedTime);
+                }
             } else {
                 // there is no differentiation in depart at queries
                 if (!s0.isEverBoarded()) s1.incrementPreTransitTime(roundedTime);
@@ -1014,6 +1048,14 @@ public class StreetEdge extends Edge implements Cloneable {
         return bicycleSafetyFactor;
     }
 
+    public void setWalkComfortScore(float walkComfortScore) {
+        this.walkComfortScore = walkComfortScore;
+    }
+
+    public float getWalkComfortScore() {
+        return walkComfortScore;
+    }
+
     private void writeObject(ObjectOutputStream out) throws IOException {
         out.defaultWriteObject();
     }
@@ -1187,7 +1229,7 @@ public class StreetEdge extends Edge implements Cloneable {
 
     public boolean getFloatingVehicleDropoffSuitability() { return suitableForFloatingVehicleRentalDropoff; }
 
-	public boolean isSlopeOverride() {
+    public boolean isSlopeOverride() {
 	    return BitSetUtils.get(flags, SLOPEOVERRIDE_FLAG_INDEX);
 	}
 
@@ -1247,15 +1289,15 @@ public class StreetEdge extends Edge implements Cloneable {
      * @param createSemiPermanentEdges Whether or not the split should result in the creation of semi-permanent edges
      *                                 or temporary edges.
      */
-    public P2<StreetEdge> split(SplitterVertex v, boolean destructive, boolean createSemiPermanentEdges) {
-        P2<LineString> geoms = GeometryUtils.splitGeometryAtPoint(getGeometry(), v.getCoordinate());
+    public P2<StreetEdge> split(SplitterVertex splitterVertex, boolean destructive, boolean createSemiPermanentEdges) {
+        P2<LineString> geoms = GeometryUtils.splitGeometryAtPoint(getGeometry(), splitterVertex.getCoordinate());
 
         StreetEdge e1 = null;
         StreetEdge e2 = null;
 
         if (destructive) {
-            e1 = new StreetEdge((StreetVertex) fromv, v, geoms.first, name, 0, permission, this.isBack());
-            e2 = new StreetEdge(v, (StreetVertex) tov, geoms.second, name, 0, permission, this.isBack());
+            e1 = new StreetEdge((StreetVertex) fromv, splitterVertex, geoms.first, name, 0, permission, this.isBack());
+            e2 = new StreetEdge(splitterVertex, (StreetVertex) tov, geoms.second, name, 0, permission, this.isBack());
 
             // copy the wayId to the split edges, so we can trace them back to their parent if need be
             e1.wayId = this.wayId;
@@ -1284,11 +1326,11 @@ public class StreetEdge extends Edge implements Cloneable {
 
             // TODO: better handle this temporary fix to handle bad edge distance calculation
             if (e1.length_mm < 0) {
-                LOG.error("Edge 1 ({}) split at vertex at {},{} has length {} mm. Setting to 1 mm.", e1.wayId, v.getLat(), v.getLon(), e1.length_mm);
+                LOG.error("Edge 1 ({}) split at vertex at {},{} has length {} mm. Setting to 1 mm.", e1.wayId, splitterVertex.getLat(), splitterVertex.getLon(), e1.length_mm);
                 e1.length_mm = 1;
             }
             if (e2.length_mm < 0) {
-                LOG.error("Edge 2 ({}) split at vertex at {},{}  has length {} mm. Setting to 1 mm.", e2.wayId, v.getLat(), v.getLon(), e2.length_mm);
+                LOG.error("Edge 2 ({}) split at vertex at {},{}  has length {} mm. Setting to 1 mm.", e2.wayId, splitterVertex.getLat(), splitterVertex.getLon(), e2.length_mm);
                 e2.length_mm = 1;
             }
 
@@ -1301,10 +1343,10 @@ public class StreetEdge extends Edge implements Cloneable {
             }
         } else {
             if (createSemiPermanentEdges) {
-                e1 = new SemiPermanentPartialStreetEdge(this, (StreetVertex) fromv, v, geoms.first, name);
-                e2 = new SemiPermanentPartialStreetEdge(this, v, (StreetVertex) tov, geoms.second, name);
+                e1 = new SemiPermanentPartialStreetEdge(this, (StreetVertex) fromv, splitterVertex, geoms.first, name);
+                e2 = new SemiPermanentPartialStreetEdge(this, splitterVertex, (StreetVertex) tov, geoms.second, name);
             } else {
-                boolean splitAtEndVertex = ((TemporarySplitterVertex) v).isEndVertex();
+                boolean splitAtEndVertex = ((TemporarySplitterVertex) splitterVertex).isEndVertex();
                 // The StreetVertex of the edge to be split that won't be used when creating a TemporaryPartialStreetEdge
                 StreetVertex ununsedExistingStreetVertex = (StreetVertex) (splitAtEndVertex ? tov : fromv);
                 if (
@@ -1355,9 +1397,9 @@ public class StreetEdge extends Edge implements Cloneable {
                     LOG.debug("Skipping creation of duplicate TemporaryPartialStreetEdge");
                 } else {
                     if (splitAtEndVertex) {
-                        e1 = new TemporaryPartialStreetEdge(this, (StreetVertex) fromv, v, geoms.first, name, 0);
+                        e1 = new TemporaryPartialStreetEdge(this, (StreetVertex) fromv, splitterVertex, geoms.first, name, 0);
                     } else {
-                        e2 = new TemporaryPartialStreetEdge(this, v, (StreetVertex) tov, geoms.second, name, 0);
+                        e2 = new TemporaryPartialStreetEdge(this, splitterVertex, (StreetVertex) tov, geoms.second, name, 0);
                     }
                 }
             }
@@ -1378,6 +1420,7 @@ public class StreetEdge extends Edge implements Cloneable {
     private void copyAttributes(StreetEdge other) {
         this.wayId = other.wayId;
         this.setBicycleSafetyFactor(other.getBicycleSafetyFactor());
+        this.setWalkComfortScore(other.getWalkComfortScore());
         this.setHasBogusName(other.hasBogusName());
         this.setStairs(other.isStairs());
         this.setWheelchairAccessible(other.isWheelchairAccessible());
@@ -1386,6 +1429,7 @@ public class StreetEdge extends Edge implements Cloneable {
         this.setFloatingVehicleDropoffSuitability(other.getFloatingVehicleDropoffSuitability());
         this.setNoThruTraffic(other.isNoThruTraffic());
         this.setStreetClass(other.getStreetClass());
+        this.setTNCStopSuitability(other.getTNCStopSuitability());
     }
 
     /**
@@ -1416,6 +1460,14 @@ public class StreetEdge extends Edge implements Cloneable {
             return ((SplitterVertex) tov).nextNodeId;
         else
             return -1;
+    }
+
+    public Map<String, String> getOsmTags() {
+        return osmTags;
+    }
+
+    public void setOsmTags(Map<String, String> osmTags) {
+        this.osmTags = osmTags;
     }
 
     public boolean addVehicleNetwork(String vehicleNetwork) {

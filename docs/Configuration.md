@@ -79,15 +79,18 @@ config key | description | value type | value default | notes
 `subwayAccessTime` | Minutes necessary to reach stops served by trips on routes of `route_type=1` (subway) from the street | double | 2.0 | units: minutes
 `streets` | Include street input files (OSM/PBF) | boolean | true | 
 `embedRouterConfig` | Embed the Router config in the graph, which allows it to be sent to a server fully configured over the wire | boolean | true |
-`areaVisibility` | Perform visibility calculations on OSM areas (these calculations can be time consuming) | boolean | true |
+`areaVisibility` | Perform visibility calculations. If this is `true` OTP attempts to calculate a path straight through an OSM area using the shortest way rather than around the edge of it. (These calculations can be time consuming). | boolean | false |
 `platformEntriesLinking` | Link unconnected entries to public transport platforms | boolean | false |
 `matchBusRoutesToStreets` | Based on GTFS shape data, guess which OSM streets each bus runs on to improve stop linking | boolean | false |
 `fetchElevationUS` | Download US NED elevation data and apply it to the graph | boolean | false |
 `elevationBucket` | If specified, download NED elevation tiles from the given AWS S3 bucket | object | null | provide an object with `accessKey`, `secretKey`, and `bucketName` for AWS S3
+`readCachedElevations` | If true, reads in pre-calculated elevation data. | boolean | true | see [Elevation Data Calculation Optimizations](#elevation-data-calculation-optimizations)
+`writeCachedElevations` | If true, writes the calculated elevation data. | boolean | false | see [Elevation Data Calculation Optimizations](#elevation-data-calculation-optimizations)
+`multiThreadElevationCalculations` | If true, the elevation module will use multi-threading during elevation calculations. | boolean | false | see [Elevation Data Calculation Optimizations](#elevation-data-calculation-optimizations)
 `elevationUnitMultiplier` | Specify a multiplier to convert elevation units from source to meters | double | 1.0 | see [Elevation unit conversion](#elevation-unit-conversion)
 `fares` | A specific fares service to use | object | null | see [fares configuration](#fares-configuration)
 `osmNaming` | A custom OSM namer to use | object | null | see [custom naming](#custom-naming)
-`osmWayPropertySet` | Custom OSM way properties | string | `default` | options: `default`, `norway`
+`osmWayPropertySet` | Custom OSM way properties | string | `default` | options: `default`, `norway`, `uk`
 `staticBikeRental` | Whether bike rental stations should be loaded from OSM, rather than periodically dynamically pulled from APIs | boolean | false | 
 `staticParkAndRide` | Whether we should create car P+R stations from OSM data | boolean | true | 
 `staticBikeParkAndRide` | Whether we should create bike P+R stations from OSM data | boolean | false | 
@@ -99,6 +102,8 @@ config key | description | value type | value default | notes
 `banDiscouragedBiking` | should walking should be allowed on OSM ways tagged with `bicycle=discouraged"` | boolean | false | 
 `maxTransferDistance` | Transfers up to this length in meters will be pre-calculated and included in the Graph | double | 2,000 | units: meters
 `extraEdgesStopPlatformLink` | add extra edges when linking a stop to a platform, to prevent detours along the platform edge | boolean | false | 
+`micromobilityTravelRestrictionsUrlOrFile` | Loads in a GeoJSON file that represents areas where it is forbidden to traverse a StreetEdge with the `MICROMOBILITY` mode. | string | null | see [Micromobility Restrictions](#micromobility-restrictions)
+`micromobilityDropoffRestrictionsUrlOrFile` | Loads in a GeoJSON file that represents areas where it is forbidden to dropoff a rented micromobility vehicle. | string | null | see [Micromobility Restrictions](#micromobility-restrictions)  
 
 This list of parameters in defined in the [code](https://github.com/opentripplanner/OpenTripPlanner/blob/master/src/main/java/org/opentripplanner/standalone/GraphBuilderParameters.java#L186-L215) for `GraphBuilderParameters`.
 
@@ -137,7 +142,6 @@ yield very realistic transfer time expectations. This works particularly well in
 the layering of non-intersecting ways is less prevalent. Here's an example in the Netherlands:
 
 <iframe width="425" height="350" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="http://www.openstreetmap.org/export/embed.html?bbox=4.70502644777298%2C52.01675028000761%2C4.7070810198783875%2C52.01813190694357&amp;layer=mapnik" style="border: 1px solid black"></iframe><small><a href="http://www.openstreetmap.org/#map=19/52.01744/4.70605">View Larger Map</a></small>
-
 When such micro-mapping data is not available, we need to rely on information from GTFS including how stops are grouped
 into stations and a table of transfer timings where available. During the graph build, OTP can create preferential
 connections between each pair of stops in the same station to favor in-station transfers:
@@ -195,6 +199,31 @@ You can configure it as follows in `build-config.json`:
 }
 ```
 
+### Geoid Difference
+
+With some elevation data, the elevation values are specified as relative to the a geoid (irregular estimate of mean sea level). See [issue #2301](https://github.com/opentripplanner/OpenTripPlanner/issues/2301) for detailed discussion of this. In these cases, it is necessary to also add this geoid value onto the elevation value to get the correct result. OTP can automatically calculate these values in one of two ways. 
+
+The first way is to use the geoid difference value that is calculated once at the center of the graph. This value is returned in each trip plan response in the [ElevationMetadata](http://otp-docs.ibi-transit.com/api/json_ElevationMetadata.html) field. Using a single value can be sufficient for smaller OTP deployments, but might result in incorrect values at the edges of larger OTP deployments. If your OTP instance uses this, it is recommended to set a default request value in the `router-config.json` file as follows:
+
+```JSON
+// router-config.json
+{
+    "routingDefaults": {
+        "geoidElevation ": true   
+    }
+}
+```
+
+The second way is to precompute these geoid difference values at a more granular level and include them when calculating elevations for each sampled point along each street edge. In order to speed up calculations, the geoid difference values are calculated and cached using only 2 significant digits of GPS coordinates. This is more than enough detail for most regions of the world and should result in less than one meter of difference in areas that have large changes in geoid difference values. To enable this, include the following in the `build-config.json` file: 
+
+```JSON
+// build-config.json
+{
+  "includeEllipsoidToGeoidDifference": true
+}
+```
+
+If the geoid difference values are precomputed, be careful to not set the routing resource value of `geoidElevation` to true in order to avoid having the graph-wide geoid added again to all elevation values in the relevant street edges in responses.
 
 ### Other raster elevation data
 
@@ -228,6 +257,42 @@ it is possible to define a multiplier that converts the elevation values from so
 {
   // Correct conversation multiplier when source data uses decimetres instead of metres
   "elevationUnitMultiplier": 0.1
+}
+```
+
+### Elevation Data Calculation Optimizations
+
+Calculating elevations on all StreetEdges can take a dramatically long time. In a very large graph build for multiple Northeast US states, the time it took to download the elevation data and calculate all of the elevations took 5,509 seconds (roughly 1.5 hours).
+
+If you are using cloud computing for your OTP instances, it is recommended to create prebuilt images that contain the elevation data you need. This will save time because all of the data won't need to be downloaded.
+
+However, the bulk of the time will still be spent calculating elevations for all of the street edges. Therefore, a further optimization can be done to calculate and save the elevation data during a graph build and then save it for future use.
+
+#### Reusing elevation data from previous builds
+
+In order to write out the precalculated elevation data, add this to your `build-config.json` file:
+
+```JSON
+// build-config.json
+{
+  "writeCachedElevations": true
+}
+```
+
+After building the graph, a file called `cached_elevations.obj` will be written to the cache directory. By default, this file is not written during graph builds. There is also a graph build parameter called `readCachedElevations` which is set to `true` by default.
+
+In graph builds, the elevation module will attempt to read the `cached_elevations.obj` file from the cache directory. The cache directory defaults to `/var/otp/cache`, but this can be overriden via the CLI argument `--cache <directory>`. For the same graph build for multiple Northeast US states, the time it took with using this predownloaded and precalculated data became 543.7 seconds (roughly 9 minutes).
+
+The cached data is a lookup table where the coordinate sequences of respective street edges are used as keys for calculated data. It is assumed that all of the other input data except for the OpenStreetMap data remains the same between graph builds. Therefore, if the underlying elevation data is changed, or a different configuration value for `includeEllipsoidToGeoidDifference` is used, then this data becomes invalid and all elevation data should be recalculated. Over time, various edits to OpenStreetMap will cause this cached data to become stale and not include new OSM ways. Therefore, periodic update of this cached data is recommended.
+
+#### Configuring multi-threading during elevation calculations
+
+For unknown reasons that seem to depend on data and machine settings, it might be faster to use a single processor. For this reason, multi-threading of elevation calculations is only done if `multiThreadElevationCalculations` is set to true. To enable multi-threading in the elevation module, add the following to the `build-config.json` file:
+                                                               
+```JSON
+// build-config.json
+{  
+  "multiThreadElevationCalculations": true
 }
 ```
 
@@ -297,10 +362,11 @@ It is possible to adjust how OSM data is interpreted by OpenTripPlanner when bui
 OSM tags have different meanings in different countries, and how the roads in a particular country or region are tagged affects routing. As an example are roads tagged with `highway=trunk (mainly) walkable in Norway, but forbidden in some other countries. This might lead to OTP being unable to snap stops to these roads, or by giving you poor routing results for walking and biking.
 You can adjust which road types that are accessible by foot, car & bicycle as well as speed limits, suitability for biking and walking.
 
-There are currently 2 wayPropertySets defined;
+There are currently 3 wayPropertySets defined;
 
 - `default` which is based on California/US mapping standard
 - `norway` which is adjusted to rules and speeds in Norway
+- `uk` which is adjusted to rules and speed in the UK
 
 To add your own custom property set have a look at `org.opentripplanner.graph_builder.module.osm.NorwayWayPropertySet` and `org.opentripplanner.graph_builder.module.osm.DefaultWayPropertySet`. If you choose to mainly rely on the default rules, make sure you add your own rules first before applying the default ones. The mechanism is that for any two identical tags, OTP will use the first one.
 
@@ -328,10 +394,11 @@ There is currently only one custom naming module called `portland` (which has no
 
 ### Micromobility Restrictions
 
-It is possible to load in restricted micromobility travel and rental parking areas that will be applied throughout the graph.
-There are two separate keys that can be added to describe either areas where travel is forbidden or where parking floating 
-rental vehicles is forbidden. Each file must contain GeoJson with a Feature or FeatureCollection that contains only Polygons 
-or MultiPolygons. The values of these keys can be either a url or a file path. For example: 
+By default, OTP allows the traversal of any StreetEdge by a micromobility vehicle where a bicycle is also allowed to traverse the StreetEdge. Also by default, OTP allows rented micromobility vehicles to be dropped off on any StreetEdge in the graph.
+
+It is possible to load in restricted micromobility travel and rental parking areas that will be applied throughout the graph. There are two separate keys that can be added to describe either areas where travel is forbidden or where parking floating
+rental vehicles is forbidden. Each file must contain GeoJson with a Feature or FeatureCollection that contains only Polygons
+or MultiPolygons. If any part of the geometry of a StreetEdge intersects any part of the given GeoJSON, then the entire StreetEdge will be marked as either not allowing traversal or not allowing the dropoff of a rented micromobility vehicle depending on the restriction being analyzed. The values of these keys can be either a url or a file path. For example:
 
 ```JSON
 // build-config.json
@@ -363,9 +430,7 @@ There are many trip planning options used in the OTP web API, and more exist
 internally that are not exposed via the API. You may want to change the default value for some of these parameters,
 i.e. the value which will be applied unless it is overridden in a web API request.
 
-A full list of them can be found in the RoutingRequest class
-[in the Javadoc](http://dev.opentripplanner.org/javadoc/master/org/opentripplanner/routing/core/RoutingRequest.html).
-Any public field or setter method in this class can be given a default value using the routingDefaults section of
+A full list of them can be found in the RoutingRequest class [in the Javadoc](http://otp-docs.ibi-transit.com/JavaDoc/org/opentripplanner/routing/core/RoutingRequest.html). Any public field or setter method in this class can be given a default value using the routingDefaults section of
 `router-config.json` as follows:
 
 ```JSON
@@ -377,6 +442,94 @@ Any public field or setter method in this class can be given a default value usi
     }
 }
 ```
+
+## Routing modes
+
+The routing request parameter `mode` determines which transport modalities should be considered when calculating the list
+of routes.
+
+Some modes (mostly bicycle and car) also have optional qualifiers `RENT`, `HAIL` or `PARK` to specify if vehicles are to be parked at a station or rented. In theory this can also apply to other modes but makes sense only in select cases which are listed below.
+
+Whether a transport mode is available highly depends on the input feeds (GTFS, OSM, bike sharing feeds) and the graph building options supplied to OTP.
+
+The complete list of modes are:
+
+- `WALK`: Walking some or all of the route.
+
+- `TRANSIT`: General catch-all for all public transport modes.
+
+- `BICYCLE`: Cycling for the entirety of the route or taking a bicycle onto the public transport and cycling from the arrival station to the destination.
+
+- `BICYCLE_RENT`: Taking a rented, shared-mobility bike for part or the entirety of the route.  
+
+    _Prerequisite:_ Vehicle positions need to be added to OTP either as static stations or dynamic data feeds. 
+
+    For dynamic bike positions configure an input feed. See [Configuring real-time updaters](Configuration.md#configuring-real-time-updaters).
+
+    For static stations check the graph building documentation for the property `staticBikeRental`.
+
+- `BICYCLE_PARK`: Leaving the bicycle at the departure station and walking from the arrival station to the destination.
+
+    This mode needs to be combined with at least one transit mode (or `TRANSIT`) otherwise it behaves like an ordinary bicycle journey.
+
+    _Prerequisite:_ Bicycle parking stations present in the OSM file and visible to OTP by enabling the property `staticBikeParkAndRide` during graph build.
+
+- `CAR`: Driving your own car the entirety of the route. 
+
+    If this is combined with `TRANSIT` it will return routes with a 
+    [Kiss & Ride](https://en.wikipedia.org/wiki/Park_and_ride#Kiss_and_ride_/_kiss_and_fly) component. This means that the car is not parked in a permanent
+    parking area but rather the passenger is dropped off (for example, at an airport) and the driver continues driving the car away from the drop off
+    location.
+
+- `CAR_PARK`: Driving a car to the park-and-ride facilities near a station and taking public transport.
+
+    This mode needs to be combined with at least one transit mode (or `TRANSIT`) otherwise it behaves like an ordinary car journey.
+
+    _Prerequisite:_ Park-and-ride areas near the station need to be present in the OSM input file.
+
+- `CAR_RENT`: Taking a rented, shared-mobility car for part or the entirety of the route.
+
+    _Prerequisite:_ Vehicle positions need to be added to OTP as dynamic data feeds.
+
+    For dynamic car positions configure an input feed. See [Configuring real-time updaters](Configuration.md#configuring-real-time-updaters).
+
+- `CAR_HAIL`: Hailing a car from a transportation network company such as Lyft or Uber and then riding in the vehicle for part or the entirety of the route. OTP will still use its underlying graph to calculate driving directions, so car leg results will likely contain different travel time estimates than those quoted from the TNC providers. If service is not available at a particular pickup location, this can cause a TNC availability error which can result in an itinerary not being able to be calculated.
+
+    _Prerequisite:_ At least one TNC updater must be added in `router-config.json`.
+
+- `MICROMOBILITY`: Riding on a lightweight motorized vehicle for the entirety of the route or taking said vehicle onto public transport and riding again from the arrival station to the destination. This mode could theoretically also be used to model human power while pedaling a bicycle.
+
+- `MICROMOBILITY_RENT`: Taking a rented, shared-mobility motorized vehicle for part or the entirety of the route.  
+
+    _Prerequisite:_ Vehicle positions need to be added to OTP  as dynamic data feeds.
+
+    For dynamic vehicle positions configure an input feed. See [Configuring real-time updaters](Configuration.md#configuring-real-time-updaters).
+
+The following modes are 1-to-1 mappings from the [GTFS `route_type`](https://developers.google.com/transit/gtfs/reference/#routestxt):
+
+- `TRAM`: Tram, streetcar, or light rail. Used for any light rail or street-level system within a metropolitan area.
+
+- `SUBWAY`: Subway or metro. Used for any underground rail system within a metropolitan area.
+
+- `RAIL`: Used for intercity or long-distance travel.
+
+- `BUS`: Used for short- and long-distance bus routes.
+
+- `FERRY`: Ferry. Used for short- and long-distance boat service.
+
+- `CABLE_CAR`: Cable car. Used for street-level cable cars where the cable runs beneath the car.
+
+- `GONDOLA`: Gondola or suspended cable car. Typically used for aerial cable cars where the car is suspended from the cable.
+
+- `FUNICULAR`: Funicular. Used for any rail system that moves on steep inclines with a cable traction system.
+
+Lastly, this mode is part of the [Extended GTFS route types](https://developers.google.com/transit/gtfs/reference/extended-route-types):
+
+- `AIRPLANE`: Taking an airplane.
+
+Note that there are conceptual overlaps between `TRAM`, `SUBWAY` and `RAIL` and some transport providers categorize their routes differently to others.
+In other words, what is considered a `SUBWAY` in one city might be of type `RAIL` in another. Study your input GTFS feed carefully to 
+find out the appropriate mapping in your region.
 
 ### Drive-to-transit routing defaults
 
@@ -633,6 +786,96 @@ sourceType: "gbfs"
 url: the URL of the GBFS feed (do not include the gbfs.json at the end) *
 ```
 \* For a list of known GBFS feeds see the [list of known GBFS feeds](https://github.com/NABSA/gbfs/blob/master/systems.csv)
+
+#### Transportation Network Company Configuration
+
+A transportation network company (TNC) is a company that provides on-demand car hailing services. When one of these updaters is configured it is possible to plan trips where part or all of the journey involves a passenger being picked up, transported in a car and then dropped off at another location.
+
+A TNC updater can be configured with either a company that has an API for determining arrival and ride estimates, or with a simple "No API" updater that always returns a default arrival estimate and 0 duration and $0 ride estimates.
+
+For the TNC updaters with APIs, it is possible to add either Uber or Lyft as a TNC updater, assuming that either of those companies allow you to access their APIs. OTP provides helper methods for making authenticated requests to each provider's API and also for verifying that TNC service exists when making certain routing requests that use a TNC for part or all of the trip.
+
+For each TNC updater, you have to manually determine what the ride type ids are for wheelchair-accessible services in the area that OTP will be planning trips in.
+
+##### No API
+
+- Add one entry in the `updater` field of `router-config.json` in the format:
+
+```JSON
+{
+    "type": "transportation-network-company-updater",
+    "sourceType": "no-api",
+    "defaultArrivalTimeSeconds": 123,
+    "isWheelChairAccessible": true
+}
+```
+
+If the `defaultArrivalTimeSeconds` is set in the config, this value will always be returned as the default arrival estimate. Otherwise, a default arrival estimate of 0 seconds is used.
+
+If the `isWheelChairAccessible` is set to true, then the arrival and ride estimates will show that the ride type of the TNC allows wheelchairs.
+
+##### Uber
+
+- Add one entry in the `updater` field of `router-config.json` in the format:
+
+```JSON
+{
+    "type": "transportation-network-company-updater",
+    "sourceType": "uber",
+    "serverToken": "YOUR-SECRET-TOKEN",
+    "wheelChairAccessibleRideType": "REGION-SPECIFIC-ID"
+}
+```
+
+##### Lyft
+
+- Add one entry in the `updater` field of `router-config.json` in the format:
+
+```JSON
+{
+    "type": "transportation-network-company-updater",
+    "sourceType": "lyft",
+    "clientId": "YOUR-CLIENT-ID",
+    "clientSecret": "YOUR-CLIENT-SECRET"
+}
+```
+
+#### Car Rental Configuration
+
+Currently, it is possible to add an updater for car2go if they provide you with data for where their cars are. This updater reads in data from a url or file about the vehicle positions and the areas where the cars are allowed to be dropped off inside of. The data format is a list of JSON objects. The regions data must be valid GeoJSON of Polygons or MultiPolygons in either a Feature or a Feature collection.
+
+Add one entry in the `updater` field of `router-config.json` in the format:
+
+```JSON
+{
+    "type": "car-rental-updater",
+    "sourceType": "car2go",
+    "frequencySec": 60,
+    "vehiclesUrl": "http://example.com/vehicles.json",
+    "regionsUrl": "http://example.com/regions.json"
+}
+```
+
+#### Micromobility Rental Configuration
+
+Adding networks of micromobility vehicles is very similar to adding in bikeshare, but the underlying code that determines how it is possible to pickup and dropoff vehicles and the speed at which they travel is different. Also, it is possible to add in data about where the vehicles can be dropped off at.
+
+The `network` field is used both internally and externally to identify the extent and use of this particular vehicle rental system. It's required for systems with more than 1 vehicle rental operator.
+
+The `url` field must point to the root `gbfs.json` endpoint.
+
+Add one entry in the `updater` field of `router-config.json` in the format:
+
+```JSON
+{
+    "type": "vehicle-rental-updater",
+    "frequencySec": 60,
+    "network": "LIME",
+    "sourceType": "gbfs",
+    "url": "https://example.com/gbfs.json",
+    "regionsUrl": "file:/home/workspace/boundary.json"
+}
+```
 
 # Configure using command-line arguments
 

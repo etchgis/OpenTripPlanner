@@ -20,10 +20,10 @@ public class QualifiedMode implements Serializable {
 
         // TEMP
         // Change all bike requests to micromobility requests for backward compatibility.
-        if (modeName.equals("BICYCLE"))
-        {
-            modeName = "MICROMOBILITY";
-        }
+        //if (modeName.equals("BICYCLE"))
+        //{
+        //    modeName = "MICROMOBILITY";
+        //}
 
         mode = TraverseMode.valueOf(modeName);
         if (mode == null) {
@@ -70,6 +70,8 @@ public class QualifiedMode implements Serializable {
 
             if (this.qualifiers.contains(Qualifier.HAIL)) {
                 req.useTransportationNetworkCompany = true;
+                req.driveTimeReluctance = 1.75;
+                req.driveDistanceReluctance = 0.2;
                 // TODO this is probably needed but causes issues in some places where trip must end on foot, so
                 // user has to walk around block, like Luxe 12.5 to North Market!
                 //req.modes.setWalk(true); // need to walk after exiting car
@@ -79,8 +81,7 @@ public class QualifiedMode implements Serializable {
                 if (this.qualifiers.contains(Qualifier.PARK)) {
                     req.parkAndRide = true;
                 } else if (this.qualifiers.contains(Qualifier.HAIL)) {
-                    req.driveTimeReluctance = 1.75;
-                    req.driveDistanceReluctance = 0.2;
+
                 } else {
                     req.kissAndRide = true;
                 }
