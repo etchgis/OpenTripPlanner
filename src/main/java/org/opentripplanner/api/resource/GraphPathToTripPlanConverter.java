@@ -335,6 +335,7 @@ public abstract class GraphPathToTripPlanConverter {
                         break;
                     // TODO: check for change in vehicle network / ID and break if so, to identify vehicle switching and cut off the leg here.
 
+                    // rental continues if there's a future micromobility state
                     if (states[j].getBackMode() == TraverseMode.MICROMOBILITY) {
                         willContinueRidingOrWalkingVehicle = true;
                         break;
@@ -440,15 +441,9 @@ public abstract class GraphPathToTripPlanConverter {
             leg.vehicleType = "bike";
         }
 
-        // Helpful for debugging
-        //LOG.info("leg start: {}/{} {}/{} end: {}/{} {}/{} -- mode 1: {} -- mode 2: {} -- mode n-1 {} -- mode n: {}", states[0].isVehicleRenting(),
-        //    states[0].getBackMode(), states[1].isVehicleRenting(),
-        //    states[1].getBackMode(), states[states.length - 2].isVehicleRenting(), states[states.length - 2].getBackMode(),
-        //    states[states.length - 1].isVehicleRenting(), states[states.length - 1].getBackMode(),
-        //    states[0].toString(), states[1].toString(), states[states.length-2].toString(), states[states.length-1].toString());
-
-        leg.rentedVehicle = states[0].isVehicleRenting() && states[states.length - 1].isVehicleRenting();
-        if (leg.rentedVehicle) {
+        //leg.rentedVehicle = states[0].isVehicleRenting() && states[states.length - 1].isVehicleRenting();
+        //if (leg.rentedVehicle) {
+        if (leg.mode == "MICROMOBILITY") {
             Set<String> networks = states[0].getVehicleRentalNetworks();
             if (networks != null && !networks.isEmpty())
                 leg.providerId = ((String)networks.toArray()[0]).toLowerCase();
