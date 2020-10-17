@@ -667,14 +667,19 @@ public abstract class GraphPathToTripPlanConverter {
      * @param states The states that go with the leg
      */
     private static void addModeAndAlerts(Graph graph, Leg leg, State[] states, boolean disableAlertFiltering, Locale requestedLocale) {
+        TraverseMode legMode = null;
         for (State state : states) {
-            TraverseMode mode = state.getBackMode();
+            TraverseMode thisMode = state.getBackMode();
             Set<Alert> alerts = graph.streetNotesService.getNotes(state);
             Edge edge = state.getBackEdge();
 
             // Update the mode for each state, unless it is null or a LEG_SWITCH mode
-            if (mode != null && mode != TraverseMode.LEG_SWITCH) {
-                leg.mode = mode.toString();
+            if (thisMode != null && thisMode != TraverseMode.LEG_SWITCH) {
+
+                // leg could be a mix of riding and walking the vehicle, make sure it doesn't get end up as walking.
+                // (this would only happen if you reach the destination while walking a vehicle which *should* never happen)
+                if (legMode != TraverseMode.MICROMOBILITY)
+                legMode = thisMode;
 
                 // TEMP until we transition to micromobility
                 //if (leg.mode == "MICROMOBILITY")
@@ -701,6 +706,9 @@ public abstract class GraphPathToTripPlanConverter {
                     }
                 }
             }
+        }
+        if (legMode != null) {
+            leg.mode = legMode.toString();
         }
     }
 
