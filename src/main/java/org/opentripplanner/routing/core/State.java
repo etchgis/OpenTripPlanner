@@ -566,13 +566,13 @@ public class State implements Cloneable {
         newState.stateData.carParked = stateData.carParked;
         newState.stateData.bikeParked = stateData.bikeParked;
         newState.stateData.usingHailedCar = stateData.usingHailedCar;
-        // if the original request options was depart At, there is a chance that the new reversed state could
+        // if the original request options was depart At, there is a chance that the new reversed state's constructor could
         // immediately board a TNC even if it didn't end that way. If the original trip didn't end this way, the TNC
         // boarding must be undone.
         if (!stateData.opt.arriveBy && !stateData.usingHailedCar) {
+            // must do the reverse of `boardHailedCar` that isn't already undone by this function.
             newState.stateData.hasHailedCarPreTransit = false;
             newState.stateData.backMode = TraverseMode.WALK;
-            newState.stateData.nonTransitMode = TraverseMode.WALK;
             if (stateData.opt.transportationNetworkCompanyEtaAtOrigin > -1) {
                 newState.time -= stateData.opt.transportationNetworkCompanyEtaAtOrigin * 1000; // TODO: Jon: is this correct?
             }
@@ -580,11 +580,17 @@ public class State implements Cloneable {
 
         newState.stateData.usingRentedVehicle = stateData.usingRentedVehicle;
         newState.stateData.rentedVehicleAllowsFloatingDropoffs = stateData.rentedVehicleAllowsFloatingDropoffs;
+        newState.stateData.vehicleType = stateData.vehicleType;
+        newState.stateData.vehicleRentalNetworks = stateData.vehicleRentalNetworks;
+        if (newState.stateData.usingRentedVehicle) {
+            // TODO: only copy the set to mutate it (create addVehicle and clearVehicles functions)
+            newState.stateData.rentedVehicles = new HashSet<>(newState.stateData.rentedVehicles);
+        }
         // if the original request options was depart At, there is a chance that the new reversed state could
         // immediately begin renting a vehicle even if it didn't end that way. If the original trip didn't end this way,
         // the vehicle rental must be undone.
         if (!stateData.opt.arriveBy && !stateData.usingRentedVehicle) {
-            newState.stateData.nonTransitMode = TraverseMode.WALK;
+            // must do the reverse of `beginVehicleRenting` that isn't already undone in this function.
             newState.stateData.hasRentedVehiclePreTransit = false;
         }
         // If the original trip was depart at and did end with dropping off the vehicle at the destination, we need to

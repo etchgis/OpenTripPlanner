@@ -130,6 +130,7 @@ public class StateData implements Cloneable {
     protected StateData clone() {
         try {
             StateData clonedStateData = (StateData) super.clone();
+            // TODO by Jon: only copy the set to mutate it (create addVehicle and clearVehicles functions)
             // When HashSets (and other collections) are cloned, they contain references to the original HashSet (see
             // https://stackoverflow.com/a/7537385/269834). Therefore, any Collection in a StateData instance must be
             // recreated using a copy constructor if data is added to the Collection throughout a shortest path search.

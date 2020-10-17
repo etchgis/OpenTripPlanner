@@ -335,8 +335,10 @@ public abstract class GraphPathToTripPlanConverter {
                         break;
                     // TODO: check for change in vehicle network / ID and break if so, to identify vehicle switching and cut off the leg here.
 
-                    // rental continues if there's a future micromobility state
-                    if (states[j].getBackMode() == TraverseMode.MICROMOBILITY) {
+                    // rental continues if there's a future micromobility state or we end while walking the
+                    // vehicle (ideally this should be prevented from ever happening with rental vehicles, using
+                    // state splitting with realistic costs for unnecessary walking!)
+                    if (states[j].getBackMode() == TraverseMode.MICROMOBILITY || j == lastStateIndex) {
                         willContinueRidingOrWalkingVehicle = true;
                         break;
                     }
