@@ -337,7 +337,7 @@ public class GenericGbfsService implements VehicleRentalDataSource, JsonConfigur
             StationInformation.class,
             hasDocks
         );
-        if (stationInfo == null) {
+        if (stationInfo == null || stationInfo.data == null) {
             // There is no point in continuing without gps info on the station locations
             return;
         }
