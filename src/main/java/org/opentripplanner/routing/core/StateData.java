@@ -106,6 +106,7 @@ public class StateData implements Cloneable {
     public Set<String> vehicleRentalNetworks;
 
     // The ids of vehicles that have been rented so far
+    // TODO: why is this a Set? can't we just store a current rental ID?
     protected Set<String> rentedVehicles = new HashSet<>();
 
     public VehicleType vehicleType;

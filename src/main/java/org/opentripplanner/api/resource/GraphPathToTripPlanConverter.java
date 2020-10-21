@@ -469,6 +469,8 @@ public abstract class GraphPathToTripPlanConverter {
             if (networks != null && !networks.isEmpty())
                 leg.providerId = ((String)networks.toArray()[0]).toLowerCase();
             leg.vehicleType = states[0].getVehicleType().toString();
+            // TODO: add vehicleId to the leg itself
+            //leg.vehicleId = states[0].getV
         }
 
         return leg;
@@ -678,8 +680,10 @@ public abstract class GraphPathToTripPlanConverter {
 
                 // leg could be a mix of riding and walking the vehicle, make sure it doesn't get end up as walking.
                 // (this would only happen if you reach the destination while walking a vehicle which *should* never happen)
-                if (legMode != TraverseMode.MICROMOBILITY)
-                legMode = thisMode;
+                // Note that a true walk could have begun at a rental vehicle state from the prior leg, hence the vehicle
+                // renting check.
+                if (legMode != TraverseMode.MICROMOBILITY || !state.isVehicleRenting())
+                    legMode = thisMode;
 
                 // TEMP until we transition to micromobility
                 //if (leg.mode == "MICROMOBILITY")
