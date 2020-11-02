@@ -569,7 +569,7 @@ public class State implements Cloneable {
         // if the original request options was depart At, there is a chance that the new reversed state's constructor could
         // immediately board a TNC even if it didn't end that way. If the original trip didn't end this way, the TNC
         // boarding must be undone.
-        if (!stateData.opt.arriveBy && !stateData.usingHailedCar) {
+        if (!stateData.opt.arriveBy && newState.stateData.usingHailedCar && !stateData.usingHailedCar) {
             // must do the reverse of `boardHailedCar` that isn't already undone by this function.
             newState.stateData.hasHailedCarPreTransit = false;
             newState.stateData.backMode = TraverseMode.WALK;
@@ -584,7 +584,7 @@ public class State implements Cloneable {
         newState.stateData.vehicleRentalNetworks = stateData.vehicleRentalNetworks;
         if (newState.stateData.usingRentedVehicle) {
             // TODO: only copy the set to mutate it (create addVehicle and clearVehicles functions)
-            newState.stateData.rentedVehicles = new HashSet<>(newState.stateData.rentedVehicles);
+            newState.stateData.rentedVehicles = new HashSet<>(stateData.rentedVehicles);
         }
         // if the original request options was depart At, there is a chance that the new reversed state could
         // immediately begin renting a vehicle even if it didn't end that way. If the original trip didn't end this way,
@@ -596,7 +596,7 @@ public class State implements Cloneable {
         // If the original trip was depart at and did end with dropping off the vehicle at the destination, we need to
         // immediately set the back mode to match the final state of the original trip
         else if (!stateData.opt.arriveBy && stateData.usingRentedVehicle) {
-            newState.stateData.backMode = TraverseMode.MICROMOBILITY;
+            newState.stateData.backMode = stateData.backMode;
         }
         // begin with the same non-transit mode that the end state had
         newState.stateData.nonTransitMode = stateData.nonTransitMode;
@@ -811,11 +811,6 @@ public class State implements Cloneable {
                     ret = edge.traverse(ret);
                 }
 
-                //if (ret != null && ret.getBackMode() != null && orig.getBackMode() != null &&
-                //ret.getBackMode() != orig.getBackMode()) {
-                //    LOG.warn("OOPS!!! " + ret.getBackMode() + " does not match " + orig.getBackMode());
-                //}
-
                 // Sometimes states are forked, so we have to find the proper forked state to continue reverse
                 // optimization.
                 while (
@@ -840,6 +835,10 @@ public class State implements Cloneable {
                 ) {
                     ret = ret.next; // Keep the mode the same as on the original graph path (in K+R)
                 }
+                //while (ret != null && ret.getBackMode() != null && orig.getBackMode() != null &&
+                //        ret.getBackMode() != orig.getBackMode()) {
+                //    ret = ret.next; // Keep the mode the same as on the original graph path
+                //}
 
                 if (ret == null) {
                     LOG.error("Cannot reverse path at edge: " + edge + ", returning unoptimized "

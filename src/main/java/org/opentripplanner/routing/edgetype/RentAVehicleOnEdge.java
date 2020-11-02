@@ -54,11 +54,15 @@ public class RentAVehicleOnEdge extends RentAVehicleAbstractEdge {
             return null;
         }
 
+        // TODO: track a history of used vehicles as well as the current vehicle, and if the vehicle
+        // is unknown while doing a backward search then don't pick up a vehicle that is in the history?
+
         // don't use the same pickup station twice
-        if (s0.stateData.getRentedVehicles().contains(station.id)) {
+        //boolean usedBefore = s0.stateData.getRentedVehicles().contains(station.id);
+        //if (usedBefore) {
             // this station has already been used in the search. Don't use it again.
-            return null;
-        }
+        //    return null;
+        //}
 
         // make sure the vehicle being rented is within a network compatible with the request
         if (options.whiteListedProviders != null &&

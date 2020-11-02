@@ -121,6 +121,14 @@ public abstract class GraphPathToTripPlanConverter {
             if(itinerary.transitTime == 0 && itinerary.walkTime < bestNonTransitTime) {
                 bestNonTransitTime = itinerary.walkTime;
             }
+            boolean hasMissingVehicleType = false;
+            for (Leg leg : itinerary.legs) {
+                if (leg.rentedVehicle && leg.vehicleType == "unknown") {
+                    LOG.error("A leg in the plan has a missing vehicle type.");
+                    hasMissingVehicleType = true;
+                    break;
+                }
+            }
             itineraries.add(itinerary);
         }
 
@@ -336,9 +344,11 @@ public abstract class GraphPathToTripPlanConverter {
                     // TODO: check for change in vehicle network / ID and break if so, to identify vehicle switching and cut off the leg here.
 
                     // rental continues if there's a future micromobility state or we end while walking the
-                    // vehicle (ideally this should be prevented from ever happening with rental vehicles, using
-                    // state splitting with realistic costs for unnecessary walking!)
-                    if (states[j].getBackMode() == TraverseMode.MICROMOBILITY || j == lastStateIndex) {
+                    // vehicle, either at the destination or at a bus stop (ideally this should be prevented
+                    // from ever happening with rental vehicles, using state splitting with realistic costs
+                    // for unnecessary walking!)
+                    if (states[j].getBackMode() == TraverseMode.MICROMOBILITY || j == lastStateIndex
+                            || states[j+1].getBackMode() != TraverseMode.WALK) {
                         willContinueRidingOrWalkingVehicle = true;
                         break;
                     }

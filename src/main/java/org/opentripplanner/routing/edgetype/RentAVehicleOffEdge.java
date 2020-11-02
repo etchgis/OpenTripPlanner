@@ -90,7 +90,7 @@ public class RentAVehicleOffEdge extends RentAVehicleAbstractEdge {
 
         if (options.arriveBy) {
             // if in arrive-by mode, the search is progressing backwards and we are entering a rented vehicle state
-            s1e.beginVehicleRenting(0, station.networks, station.type, !station.isBorderDropoff);
+            s1e.beginVehicleRenting(0, station.networks, station.type, station.isFloatingVehicle);
         } else {
             if (s0.getVehicleType() != station.type && s0.getVehicleType() != VehicleType.UNKNOWN)
                 return null;
