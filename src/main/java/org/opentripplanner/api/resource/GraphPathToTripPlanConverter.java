@@ -225,8 +225,21 @@ public abstract class GraphPathToTripPlanConverter {
             itinerary.fare = fareService.getCost(path);
         }
 
+        List<State[]> tmpLegsWithoutZeros = new ArrayList<State[]>(); // TODO remove this
         for (State[] legStates : legsStates) {
-            itinerary.addLeg(generateLeg(graph, legStates, showIntermediateStops, disableAlertFiltering, requestedLocale));
+            Leg newLeg = generateLeg(graph, legStates, showIntermediateStops, disableAlertFiltering, requestedLocale);
+            // TEMP: if you start at a bike station, leg has 0 length / no geometry. Also, temporary edges have no length.
+            // A better fix for this is to not have the walk leg there at all for bike stations, and to fix the edge
+            // lengths at the origin/destination.
+            if (newLeg.distance > 0) {
+                itinerary.addLeg(newLeg);
+                tmpLegsWithoutZeros.add(legStates);
+            }
+        }
+        // TODO remove this section
+        legsStates = new State[tmpLegsWithoutZeros.size()][];
+        for (int i = 0; i < legsStates.length; i++) {
+            legsStates[i] = tmpLegsWithoutZeros.get(i);
         }
 
         if (addTurnByTurn)
