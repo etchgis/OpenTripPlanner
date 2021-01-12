@@ -492,6 +492,7 @@ public abstract class GraphPathToTripPlanConverter {
             if (networks != null && !networks.isEmpty())
                 leg.providerId = ((String)networks.toArray()[0]).toLowerCase();
             leg.vehicleType = states[0].getVehicleType().toString();
+            leg.docklessVehicle = states[0].isFloatingVehicle();
             // TODO: add vehicleId to the leg itself
             //leg.vehicleId = states[0].getV
         }

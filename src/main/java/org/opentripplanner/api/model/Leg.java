@@ -235,6 +235,9 @@ public class Leg {
     public String vehicleType;
 
     @JsonSerialize
+    public Boolean docklessVehicle;
+
+    @JsonSerialize
     public Boolean hailedCar;
 
     /**
